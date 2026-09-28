@@ -1,0 +1,75 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "trace"
+version = "0.1.0"
+description = "Transformation Risk Analysis & Change Evaluation"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "pydantic-settings>=2.5.0",
+    "sqlalchemy[asyncio]>=2.0.35",
+    "asyncpg>=0.29.0",
+    "alembic>=1.13.0",
+    "neo4j>=5.24.0",
+    "structlog>=24.4.0",
+    "httpx>=0.27.0",
+    "tenacity>=9.0.0",
+    "langgraph>=0.2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest-cov>=5.0.0",
+    "pytest-socket>=0.7.0",
+    "httpx>=0.27.0",
+    "aiosqlite>=0.20.0",
+    "mypy>=1.11.0",
+    "ruff>=0.6.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/trace"]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+pythonpath = ["src"]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-m 'not integration' --cov=trace --cov-branch --cov-report=term-missing"
+markers = [
+    "integration: marks tests as requiring live services",
+]
+
+[tool.coverage.run]
+source = ["trace"]
+branch = true
+omit = ["tests/*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "C4", "PT"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+mypy_path = "src"
+plugins = [
+    "pydantic.mypy",
+]
+
+[[tool.mypy.overrides]]
+module = ["neo4j.*", "asyncpg.*", "aiosqlite.*", "langgraph.*"]
+ignore_missing_imports = true
