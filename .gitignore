@@ -72,7 +72,4 @@ junit.xml
 Thumbs.db
 Desktop.ini
 
-# AI Agent & Specific configuration folders
-.agents/
-.specify/
-!.specify/memory
+
