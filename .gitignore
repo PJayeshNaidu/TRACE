@@ -64,13 +64,13 @@ junit.xml
 .vscode/
 .idea/
 .fleet/
-.history/
+.history/N
 *.swp
 *.swo
 *~
 .DS_Store
 Thumbs.db
 Desktop.ini
+.specify/
 .agents/
-.specify
 !.specify/memory/
