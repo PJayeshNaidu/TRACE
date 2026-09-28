@@ -2,10 +2,13 @@
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 from trace.api.health.router import get_db_gateway, get_graph_gateway
 from trace.core.config import ApplicationConfig
 from trace.domain.health import GraphConnectivityState
-from trace.infrastructure.database.gateway import DatabaseGateway
+from trace.domain.repository import ConnectionValidationResult, RepositoryType
+from trace.infrastructure.database.gateway import DatabaseGateway, InMemoryDatabaseGateway
+from trace.infrastructure.database.models import Base
 from trace.infrastructure.graph.gateway import StubGraphGateway
 from trace.infrastructure.llm.config import LLMConfig, ModelConfig
 from trace.infrastructure.llm.provider import LLMProvider
@@ -103,6 +106,60 @@ def stub_graph_gateway() -> StubGraphGateway:
 def stub_llm_provider() -> LLMProvider:
     """Provide a StubLLMProvider instance satisfying LLMProvider Protocol."""
     return StubLLMProvider()
+
+
+class StubGitProvider:
+    """Configurable test double implementing GitProvider Protocol."""
+
+    def __init__(
+        self,
+        local_result: ConnectionValidationResult | None = None,
+        remote_result: ConnectionValidationResult | None = None,
+        default_branch: str | None = "main",
+        remote_refs: list[str] | None = None,
+    ) -> None:
+        self.local_result = local_result or ConnectionValidationResult(
+            is_connected=True, detected_branch="main", latency_ms=1.0
+        )
+        self.remote_result = remote_result or ConnectionValidationResult(
+            is_connected=True, detected_branch="main", latency_ms=2.0
+        )
+        self.default_branch = default_branch
+        self.remote_refs = remote_refs or ["refs/heads/main"]
+
+    async def validate_local(self, path: Path) -> ConnectionValidationResult:
+        return self.local_result
+
+    async def validate_remote(
+        self, url: str, timeout_seconds: float = 10.0
+    ) -> ConnectionValidationResult:
+        return self.remote_result
+
+    async def detect_default_branch(self, location: str, repo_type: RepositoryType) -> str | None:
+        return self.default_branch
+
+    async def list_remote_references(self, url: str, timeout_seconds: float = 10.0) -> list[str]:
+        return self.remote_refs
+
+
+@pytest.fixture
+def stub_git_provider() -> StubGitProvider:
+    """Provide a configurable StubGitProvider satisfying GitProvider Protocol."""
+    return StubGitProvider()
+
+
+@pytest.fixture
+async def in_memory_db_gateway() -> AsyncIterator[InMemoryDatabaseGateway]:
+    """Provide an in-memory SQLite database gateway with initialized ORM schema."""
+    gateway = InMemoryDatabaseGateway()
+    async with gateway._engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    try:
+        yield gateway
+    finally:
+        async with gateway._engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
+        await gateway.dispose()
 
 
 @pytest.fixture

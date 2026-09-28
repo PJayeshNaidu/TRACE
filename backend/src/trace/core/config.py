@@ -130,6 +130,17 @@ class ApplicationConfig(BaseSettings):
         description="Whether repository source code transmission to LLM is permitted",
     )
 
+    # Git Subprocess Settings
+    git_timeout_seconds: float = Field(
+        default=10.0,
+        gt=0.0,
+        description="Timeout in seconds for Git subprocess operations",
+    )
+    git_binary_path: str = Field(
+        default="git",
+        description="Path to the system Git executable",
+    )
+
     @field_validator("llm_fallback_models", mode="before")
     @classmethod
     def _parse_fallback_models(cls, v: Any) -> list[str]:

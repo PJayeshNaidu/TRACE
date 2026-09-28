@@ -3,18 +3,20 @@
 import asyncio
 import os
 from logging.config import fileConfig
+from trace.infrastructure.database.models import Base
 
-from alembic import context
-from sqlalchemy import MetaData, pool
+from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
+
+from alembic import context
 
 config = context.config
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-target_metadata = MetaData()
+target_metadata = Base.metadata
 
 # If DATABASE_URL is in environment, override sqlalchemy.url in config
 db_url = os.getenv("DATABASE_URL")

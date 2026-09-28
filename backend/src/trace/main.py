@@ -2,10 +2,12 @@
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from trace.api.errors import register_exception_handlers
 from trace.api.router import api_router
 from trace.core.config import ApplicationConfig
 from trace.core.logging import configure_logging
 from trace.infrastructure.database.gateway import SQLAlchemyDatabaseGateway
+from trace.infrastructure.git.adapters.subprocess import SubprocessGitProvider
 from trace.infrastructure.graph.gateway import (
     Neo4jGraphGateway,
     UnconfiguredGraphGateway,
@@ -63,6 +65,9 @@ def create_app(config: ApplicationConfig | None = None) -> FastAPI:
         http_client = httpx.AsyncClient()
         app.state.llm = OpenRouterAdapter(config=cfg, http_client=http_client)
 
+        # Git Provider Adapter
+        app.state.git = SubprocessGitProvider(config=cfg)
+
         try:
             yield
         finally:
@@ -79,6 +84,7 @@ def create_app(config: ApplicationConfig | None = None) -> FastAPI:
     )
 
     app.include_router(api_router)
+    register_exception_handlers(app)
     return app
 
 

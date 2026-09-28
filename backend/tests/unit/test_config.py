@@ -122,3 +122,30 @@ def test_llm_enable_external_calls_requires_api_key() -> None:
             openrouter_api_key=None,
         )
     assert "openrouter_api_key" in str(exc_info.value).lower()
+
+
+def test_git_execution_settings_defaults_and_overrides() -> None:
+    """Git execution settings have safe defaults and accept valid overrides."""
+    config_default = ApplicationConfig(
+        _env_file=None,
+        database_url="postgresql+asyncpg://user:pass@localhost:5432/trace",
+    )
+    assert config_default.git_timeout_seconds == 10.0
+    assert config_default.git_binary_path == "git"
+
+    config_custom = ApplicationConfig(
+        _env_file=None,
+        database_url="postgresql+asyncpg://user:pass@localhost:5432/trace",
+        git_timeout_seconds=5.0,
+        git_binary_path="/usr/bin/git",
+    )
+    assert config_custom.git_timeout_seconds == 5.0
+    assert config_custom.git_binary_path == "/usr/bin/git"
+
+    # Empty string should fall back to default
+    config_empty = ApplicationConfig(
+        _env_file=None,
+        database_url="postgresql+asyncpg://user:pass@localhost:5432/trace",
+        git_binary_path="",
+    )
+    assert config_empty.git_binary_path == "git"
