@@ -71,6 +71,8 @@ junit.xml
 .DS_Store
 Thumbs.db
 Desktop.ini
-.specify/
+
+# AI Agent & Specific configuration folders
 .agents/
-!.specify/memory/
+.specify/
+!.specify/memory
