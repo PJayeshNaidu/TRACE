@@ -72,6 +72,6 @@ junit.xml
 Thumbs.db
 Desktop.ini
 
-/.agents
-/.specify/*
-!/.specify/memory/
+.agents
+.specify/*
+!.specify/memory/
