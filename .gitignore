@@ -71,6 +71,6 @@ junit.xml
 .DS_Store
 Thumbs.db
 Desktop.ini
-.agents/*
+.agents/
 .specify
 !.specify/memory/
