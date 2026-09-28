@@ -1,12 +1,15 @@
 """Structured logging configuration using structlog with secret redaction."""
 
 import logging
+import re
 import sys
 from collections.abc import MutableMapping
 from typing import Any
 
 import structlog
 from structlog.types import EventDict, WrappedLogger
+
+URI_CREDENTIAL_PATTERN = re.compile(r"://([^:@\s]+):([^@\s]+)@")
 
 SECRET_FIELDS = {
     "api_key",
@@ -39,6 +42,11 @@ class SecretRedactingProcessor:
             )
             if matches_secret:
                 event_dict[key] = "[REDACTED]"
+            elif isinstance(event_dict[key], str):
+                event_dict[key] = URI_CREDENTIAL_PATTERN.sub(
+                    "://[REDACTED]:[REDACTED]@",
+                    event_dict[key],
+                )
         return dict(event_dict)
 
 
