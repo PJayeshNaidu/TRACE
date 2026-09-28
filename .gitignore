@@ -73,5 +73,5 @@ Thumbs.db
 Desktop.ini
 
 .agents
-.specify/*
+.specify
 !.specify/memory/
