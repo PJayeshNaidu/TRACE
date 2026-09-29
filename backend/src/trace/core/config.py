@@ -113,6 +113,10 @@ class ApplicationConfig(BaseSettings):
         default=".trace/artifacts",
         description="Filesystem directory for storing analysis run artifacts",
     )
+    repo_analysis_dir: str = Field(
+        default="repo_analysis",
+        description="Filesystem directory for storing repository analysis JSON summaries",
+    )
 
     # Environment and Observability
     app_env: Literal["development", "production", "test"] = Field(

@@ -1,0 +1,1254 @@
+{
+  "schema_version": "1.0.0",
+  "analysis_run": {
+    "analysis_run_id": "d5404034-d617-4a6c-8689-9aded03d04ab",
+    "repository_id": "11f2dbd8-6d9e-4f8d-a336-4c7257420007",
+    "status": "COMPLETED",
+    "started_at": "2026-09-29T11:51:46.593225+00:00",
+    "completed_at": "2026-09-29T11:51:46.727860+00:00",
+    "duration_ms": 134.63,
+    "analyzer_version": "0.1.0"
+  },
+  "repository": {
+    "repository_id": "11f2dbd8-6d9e-4f8d-a336-4c7257420007",
+    "name": "flask-pytest-example",
+    "url": "https://github.com/aaronjolson/flask-pytest-example.git",
+    "root_path": "C:\\Course Work\\Course Tasks\\TRACE\\test-repos\\flask-pytest-example",
+    "default_branch": "master"
+  },
+  "version_control": {
+    "current_version": {
+      "commit_sha": "0000000000000000000000000000000000000000",
+      "branch": "string",
+      "tag": null
+    },
+    "branches": [
+      {
+        "branch_id": "branch:string",
+        "name": "string",
+        "is_default": false,
+        "is_remote": false,
+        "remote": null,
+        "head_commit": "0000000000000000000000000000000000000000",
+        "base_branch": null,
+        "base_commit": null,
+        "commits": [
+          {
+            "commit_sha": "e74780371fbb8372b95ad91faf9a1e7580acf072",
+            "short_sha": "e747803",
+            "parent_commits": [
+              "38d7cabc4f4752057afa8bc3f0e595b2eb7bf868"
+            ],
+            "message": "add license",
+            "author": "Aaron J. Olson",
+            "timestamp": "2019-03-06T22:36:41-06:00"
+          },
+          {
+            "commit_sha": "38d7cabc4f4752057afa8bc3f0e595b2eb7bf868",
+            "short_sha": "38d7cab",
+            "parent_commits": [],
+            "message": "First commit",
+            "author": "Aaron Olson",
+            "timestamp": "2019-03-06T22:29:04-06:00"
+          }
+        ]
+      }
+    ],
+    "tags": []
+  },
+  "metrics": {
+    "total_files": 10,
+    "python_files": 4,
+    "modules": 6,
+    "packages": 3,
+    "classes": 0,
+    "functions": 5,
+    "methods": 0,
+    "endpoints": 0,
+    "database_models": 0,
+    "test_functions": 4,
+    "external_dependencies": 2,
+    "total_relationships": 26,
+    "diagnostics_count": 0
+  },
+  "files": [
+    {
+      "file_id": "file:.gitignore",
+      "name": ".gitignore",
+      "path": ".gitignore",
+      "extension": "",
+      "language": "text",
+      "size_bytes": 42,
+      "line_count": 4,
+      "hash": "fdd6d0696527097c498011eec5d1dbadddb5fb0c364130855e0d6122ce81c00f",
+      "is_test": false,
+      "is_generated": false
+    },
+    {
+      "file_id": "file:__init__.py",
+      "name": "__init__.py",
+      "path": "__init__.py",
+      "extension": ".py",
+      "language": "python",
+      "size_bytes": 0,
+      "line_count": 0,
+      "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "is_test": false,
+      "is_generated": false
+    },
+    {
+      "file_id": "file:app.py",
+      "name": "app.py",
+      "path": "app.py",
+      "extension": ".py",
+      "language": "python",
+      "size_bytes": 187,
+      "line_count": 9,
+      "hash": "0d77227a9bb20ad9e67aa20f04e1f91b333d333c224ca66fd5f4201772fb15f1",
+      "is_test": false,
+      "is_generated": false
+    },
+    {
+      "file_id": "file:handlers/__init__.py",
+      "name": "__init__.py",
+      "path": "handlers/__init__.py",
+      "extension": ".py",
+      "language": "python",
+      "size_bytes": 0,
+      "line_count": 0,
+      "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "is_test": false,
+      "is_generated": false
+    },
+    {
+      "file_id": "file:handlers/routes.py",
+      "name": "routes.py",
+      "path": "handlers/routes.py",
+      "extension": ".py",
+      "language": "python",
+      "size_bytes": 681,
+      "line_count": 28,
+      "hash": "f1b808b6c42a4fa51055104936fc5acaa2bd1b07544833326522a80a085f27a7",
+      "is_test": false,
+      "is_generated": false
+    },
+    {
+      "file_id": "file:LICENSE",
+      "name": "LICENSE",
+      "path": "LICENSE",
+      "extension": "",
+      "language": "text",
+      "size_bytes": 1092,
+      "line_count": 21,
+      "hash": "9bdbe5918bc2deb93f735f73e8d0d4ec55e9c4bb2fe419c03ab7d879480e4241",
+      "is_test": false,
+      "is_generated": false
+    },
+    {
+      "file_id": "file:README.md",
+      "name": "README.md",
+      "path": "README.md",
+      "extension": ".md",
+      "language": "markdown",
+      "size_bytes": 505,
+      "line_count": 15,
+      "hash": "dcc0b6045daa6bf2b438dd55d1aca3fea3ad94955ee65989b9b4a814462d61f2",
+      "is_test": false,
+      "is_generated": false
+    },
+    {
+      "file_id": "file:requirements.txt",
+      "name": "requirements.txt",
+      "path": "requirements.txt",
+      "extension": ".txt",
+      "language": "txt",
+      "size_bytes": 15,
+      "line_count": 2,
+      "hash": "6572407b5858daa06d1e4991be091da283a4930620d9c7424360cc99de0c47bb",
+      "is_test": false,
+      "is_generated": false
+    },
+    {
+      "file_id": "file:tests/__init__.py",
+      "name": "__init__.py",
+      "path": "tests/__init__.py",
+      "extension": ".py",
+      "language": "python",
+      "size_bytes": 0,
+      "line_count": 0,
+      "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "is_test": true,
+      "is_generated": false
+    },
+    {
+      "file_id": "file:tests/test_routes.py",
+      "name": "test_routes.py",
+      "path": "tests/test_routes.py",
+      "extension": ".py",
+      "language": "python",
+      "size_bytes": 1780,
+      "line_count": 73,
+      "hash": "eb80827ffbb38f0cfed4549d4f6fc42ed18f1a51fedf1ea1edc6abf3fc3572e9",
+      "is_test": true,
+      "is_generated": false
+    }
+  ],
+  "python_files": [
+    {
+      "file": {
+        "file_id": "file:__init__.py",
+        "name": "__init__.py",
+        "path": "__init__.py",
+        "location": "C:\\Course Work\\Course Tasks\\TRACE\\test-repos\\flask-pytest-example\\__init__.py",
+        "size_bytes": 0,
+        "line_count": 0,
+        "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "package": {
+        "package_id": "package:root",
+        "name": "root",
+        "path": "."
+      },
+      "modules": [
+        {
+          "module_id": "mod:",
+          "name": "",
+          "qualified_name": "",
+          "location": {
+            "line_start": 1,
+            "line_end": 1
+          }
+        }
+      ],
+      "classes": [],
+      "functions": [],
+      "methods": [],
+      "endpoints": [],
+      "database_models": [],
+      "test_functions": [],
+      "imports": [],
+      "calls": [],
+      "dependencies": [],
+      "relationships": []
+    },
+    {
+      "file": {
+        "file_id": "file:app.py",
+        "name": "app.py",
+        "path": "app.py",
+        "location": "C:\\Course Work\\Course Tasks\\TRACE\\test-repos\\flask-pytest-example\\app.py",
+        "size_bytes": 187,
+        "line_count": 9,
+        "hash": "0d77227a9bb20ad9e67aa20f04e1f91b333d333c224ca66fd5f4201772fb15f1"
+      },
+      "package": {
+        "package_id": "package:root",
+        "name": "root",
+        "path": "."
+      },
+      "modules": [
+        {
+          "module_id": "mod:app",
+          "name": "app",
+          "qualified_name": "app",
+          "location": {
+            "line_start": 1,
+            "line_end": 9
+          }
+        }
+      ],
+      "classes": [],
+      "functions": [],
+      "methods": [],
+      "endpoints": [],
+      "database_models": [],
+      "test_functions": [],
+      "imports": [
+        {
+          "import_id": "import:app.py:1:flask.Flask",
+          "name": "flask.Flask",
+          "source": "app",
+          "type": "external",
+          "location": {
+            "line": 1
+          }
+        },
+        {
+          "import_id": "import:app.py:2:flask_pytest_example.handlers.routes.configure_routes",
+          "name": "flask_pytest_example.handlers.routes.configure_routes",
+          "source": "app",
+          "type": "external",
+          "location": {
+            "line": 2
+          }
+        }
+      ],
+      "calls": [],
+      "dependencies": [
+        {
+          "dependency_id": "dep:app.py:app",
+          "target_id": "app",
+          "target_type": "external_dependency",
+          "dependency_type": "imports"
+        },
+        {
+          "dependency_id": "dep:app.py:app",
+          "target_id": "app",
+          "target_type": "external_dependency",
+          "dependency_type": "imports"
+        }
+      ],
+      "relationships": [
+        {
+          "relationship_id": "rel:app.py:1:IMPORTS:flask.Flask",
+          "source": {
+            "id": "app",
+            "type": "MODULE"
+          },
+          "target": {
+            "id": "flask.Flask",
+            "type": "MODULE"
+          },
+          "relationship_type": "IMPORTS",
+          "location": {
+            "line": 1
+          }
+        },
+        {
+          "relationship_id": "rel:app.py:2:IMPORTS:flask_pytest_example.handlers.routes.configure_routes",
+          "source": {
+            "id": "app",
+            "type": "MODULE"
+          },
+          "target": {
+            "id": "flask_pytest_example.handlers.routes.configure_routes",
+            "type": "MODULE"
+          },
+          "relationship_type": "IMPORTS",
+          "location": {
+            "line": 2
+          }
+        }
+      ]
+    },
+    {
+      "file": {
+        "file_id": "file:handlers/__init__.py",
+        "name": "__init__.py",
+        "path": "handlers/__init__.py",
+        "location": "C:\\Course Work\\Course Tasks\\TRACE\\test-repos\\flask-pytest-example\\handlers\\__init__.py",
+        "size_bytes": 0,
+        "line_count": 0,
+        "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "package": {
+        "package_id": "package:handlers",
+        "name": "handlers",
+        "path": "handlers"
+      },
+      "modules": [
+        {
+          "module_id": "mod:handlers",
+          "name": "handlers",
+          "qualified_name": "handlers",
+          "location": {
+            "line_start": 1,
+            "line_end": 1
+          }
+        }
+      ],
+      "classes": [],
+      "functions": [],
+      "methods": [],
+      "endpoints": [],
+      "database_models": [],
+      "test_functions": [],
+      "imports": [],
+      "calls": [],
+      "dependencies": [],
+      "relationships": []
+    },
+    {
+      "file": {
+        "file_id": "file:handlers/routes.py",
+        "name": "routes.py",
+        "path": "handlers/routes.py",
+        "location": "C:\\Course Work\\Course Tasks\\TRACE\\test-repos\\flask-pytest-example\\handlers\\routes.py",
+        "size_bytes": 681,
+        "line_count": 28,
+        "hash": "f1b808b6c42a4fa51055104936fc5acaa2bd1b07544833326522a80a085f27a7"
+      },
+      "package": {
+        "package_id": "package:handlers",
+        "name": "handlers",
+        "path": "handlers"
+      },
+      "modules": [
+        {
+          "module_id": "mod:handlers.routes",
+          "name": "routes",
+          "qualified_name": "handlers.routes",
+          "location": {
+            "line_start": 1,
+            "line_end": 28
+          }
+        }
+      ],
+      "classes": [],
+      "functions": [
+        {
+          "function_id": "fn:handlers.routes.configure_routes",
+          "name": "configure_routes",
+          "qualified_name": "handlers.routes.configure_routes",
+          "location": {
+            "line_start": 5,
+            "line_end": 28
+          },
+          "parameters": [
+            {
+              "name": "app",
+              "type": "Any",
+              "default": null
+            }
+          ],
+          "return_type": "Any",
+          "is_async": false
+        }
+      ],
+      "methods": [],
+      "endpoints": [],
+      "database_models": [],
+      "test_functions": [],
+      "imports": [
+        {
+          "import_id": "import:handlers/routes.py:1:flask.request",
+          "name": "flask.request",
+          "source": "handlers.routes",
+          "type": "external",
+          "location": {
+            "line": 1
+          }
+        },
+        {
+          "import_id": "import:handlers/routes.py:2:json",
+          "name": "json",
+          "source": "handlers.routes",
+          "type": "external",
+          "location": {
+            "line": 2
+          }
+        }
+      ],
+      "calls": [
+        {
+          "call_id": "call:handlers/routes.py:7:handlers.routes.configure_routes->app.route",
+          "caller_id": "fn:handlers.routes.configure_routes",
+          "callee_id": "app.route",
+          "callee_type": "method",
+          "location": {
+            "line": 7
+          }
+        },
+        {
+          "call_id": "call:handlers/routes.py:11:handlers.routes.configure_routes->app.route",
+          "caller_id": "fn:handlers.routes.configure_routes",
+          "callee_id": "app.route",
+          "callee_type": "method",
+          "location": {
+            "line": 11
+          }
+        },
+        {
+          "call_id": "call:handlers/routes.py:15:handlers.routes.configure_routes->headers.get",
+          "caller_id": "fn:handlers.routes.configure_routes",
+          "callee_id": "headers.get",
+          "callee_type": "method",
+          "location": {
+            "line": 15
+          }
+        },
+        {
+          "call_id": "call:handlers/routes.py:19:handlers.routes.configure_routes->request.get_data",
+          "caller_id": "fn:handlers.routes.configure_routes",
+          "callee_id": "flask.request.get_data",
+          "callee_type": "external",
+          "location": {
+            "line": 19
+          }
+        },
+        {
+          "call_id": "call:handlers/routes.py:20:handlers.routes.configure_routes->json.loads",
+          "caller_id": "fn:handlers.routes.configure_routes",
+          "callee_id": "json.loads",
+          "callee_type": "external",
+          "location": {
+            "line": 20
+          }
+        },
+        {
+          "call_id": "call:handlers/routes.py:22:handlers.routes.configure_routes->data.get",
+          "caller_id": "fn:handlers.routes.configure_routes",
+          "callee_id": "data.get",
+          "callee_type": "method",
+          "location": {
+            "line": 22
+          }
+        },
+        {
+          "call_id": "call:handlers/routes.py:23:handlers.routes.configure_routes->data.get",
+          "caller_id": "fn:handlers.routes.configure_routes",
+          "callee_id": "data.get",
+          "callee_type": "method",
+          "location": {
+            "line": 23
+          }
+        }
+      ],
+      "dependencies": [
+        {
+          "dependency_id": "dep:handlers/routes.py:handlers.routes",
+          "target_id": "handlers.routes",
+          "target_type": "external_dependency",
+          "dependency_type": "imports"
+        },
+        {
+          "dependency_id": "dep:handlers/routes.py:handlers.routes",
+          "target_id": "handlers.routes",
+          "target_type": "external_dependency",
+          "dependency_type": "imports"
+        },
+        {
+          "dependency_id": "dep:handlers/routes.py:app.route",
+          "target_id": "app.route",
+          "target_type": "method",
+          "dependency_type": "calls"
+        },
+        {
+          "dependency_id": "dep:handlers/routes.py:app.route",
+          "target_id": "app.route",
+          "target_type": "method",
+          "dependency_type": "calls"
+        },
+        {
+          "dependency_id": "dep:handlers/routes.py:headers.get",
+          "target_id": "headers.get",
+          "target_type": "method",
+          "dependency_type": "calls"
+        },
+        {
+          "dependency_id": "dep:handlers/routes.py:flask.request.get_data",
+          "target_id": "flask.request.get_data",
+          "target_type": "external",
+          "dependency_type": "calls"
+        },
+        {
+          "dependency_id": "dep:handlers/routes.py:json.loads",
+          "target_id": "json.loads",
+          "target_type": "external",
+          "dependency_type": "calls"
+        },
+        {
+          "dependency_id": "dep:handlers/routes.py:data.get",
+          "target_id": "data.get",
+          "target_type": "method",
+          "dependency_type": "calls"
+        },
+        {
+          "dependency_id": "dep:handlers/routes.py:data.get",
+          "target_id": "data.get",
+          "target_type": "method",
+          "dependency_type": "calls"
+        }
+      ],
+      "relationships": [
+        {
+          "relationship_id": "rel:handlers/routes.py:1:IMPORTS:flask.request",
+          "source": {
+            "id": "handlers.routes",
+            "type": "MODULE"
+          },
+          "target": {
+            "id": "flask.request",
+            "type": "MODULE"
+          },
+          "relationship_type": "IMPORTS",
+          "location": {
+            "line": 1
+          }
+        },
+        {
+          "relationship_id": "rel:handlers/routes.py:2:IMPORTS:json",
+          "source": {
+            "id": "handlers.routes",
+            "type": "MODULE"
+          },
+          "target": {
+            "id": "json",
+            "type": "MODULE"
+          },
+          "relationship_type": "IMPORTS",
+          "location": {
+            "line": 2
+          }
+        },
+        {
+          "relationship_id": "rel:handlers/routes.py:19:CALLS:flask.request.get_data",
+          "source": {
+            "id": "handlers.routes.configure_routes",
+            "type": "FUNCTION"
+          },
+          "target": {
+            "id": "flask.request.get_data",
+            "type": "FUNCTION"
+          },
+          "relationship_type": "CALLS",
+          "location": {
+            "line": 19
+          }
+        },
+        {
+          "relationship_id": "rel:handlers/routes.py:20:CALLS:json.loads",
+          "source": {
+            "id": "handlers.routes.configure_routes",
+            "type": "FUNCTION"
+          },
+          "target": {
+            "id": "json.loads",
+            "type": "FUNCTION"
+          },
+          "relationship_type": "CALLS",
+          "location": {
+            "line": 20
+          }
+        }
+      ]
+    }
+  ],
+  "external_dependencies": [
+    {
+      "dependency_id": "dep:flask",
+      "name": "flask",
+      "version": "*",
+      "type": "external",
+      "source": "requirements.txt"
+    },
+    {
+      "dependency_id": "dep:pytest",
+      "name": "pytest",
+      "version": "*",
+      "type": "external",
+      "source": "requirements.txt"
+    }
+  ],
+  "relationships": [
+    {
+      "relationship_id": "rel:app:IMPORTS:flask.Flask",
+      "source": {
+        "id": "app",
+        "type": "MODULE"
+      },
+      "target": {
+        "id": "flask.Flask",
+        "type": "MODULE"
+      },
+      "relationship_type": "IMPORTS"
+    },
+    {
+      "relationship_id": "rel:app:IMPORTS:flask_pytest_example.handlers.routes.configure_routes",
+      "source": {
+        "id": "app",
+        "type": "MODULE"
+      },
+      "target": {
+        "id": "flask_pytest_example.handlers.routes.configure_routes",
+        "type": "MODULE"
+      },
+      "relationship_type": "IMPORTS"
+    },
+    {
+      "relationship_id": "rel:handlers.routes:IMPORTS:flask.request",
+      "source": {
+        "id": "handlers.routes",
+        "type": "MODULE"
+      },
+      "target": {
+        "id": "flask.request",
+        "type": "MODULE"
+      },
+      "relationship_type": "IMPORTS"
+    },
+    {
+      "relationship_id": "rel:handlers.routes:IMPORTS:json",
+      "source": {
+        "id": "handlers.routes",
+        "type": "MODULE"
+      },
+      "target": {
+        "id": "json",
+        "type": "MODULE"
+      },
+      "relationship_type": "IMPORTS"
+    },
+    {
+      "relationship_id": "rel:handlers.routes.configure_routes:CALLS:flask.request.get_data",
+      "source": {
+        "id": "handlers.routes.configure_routes",
+        "type": "FUNCTION"
+      },
+      "target": {
+        "id": "flask.request.get_data",
+        "type": "FUNCTION"
+      },
+      "relationship_type": "CALLS"
+    },
+    {
+      "relationship_id": "rel:handlers.routes.configure_routes:CALLS:json.loads",
+      "source": {
+        "id": "handlers.routes.configure_routes",
+        "type": "FUNCTION"
+      },
+      "target": {
+        "id": "json.loads",
+        "type": "FUNCTION"
+      },
+      "relationship_type": "CALLS"
+    },
+    {
+      "relationship_id": "rel:tests.test_routes:IMPORTS:flask.Flask",
+      "source": {
+        "id": "tests.test_routes",
+        "type": "MODULE"
+      },
+      "target": {
+        "id": "flask.Flask",
+        "type": "MODULE"
+      },
+      "relationship_type": "IMPORTS"
+    },
+    {
+      "relationship_id": "rel:tests.test_routes:IMPORTS:json",
+      "source": {
+        "id": "tests.test_routes",
+        "type": "MODULE"
+      },
+      "target": {
+        "id": "json",
+        "type": "MODULE"
+      },
+      "relationship_type": "IMPORTS"
+    },
+    {
+      "relationship_id": "rel:tests.test_routes:IMPORTS:flask_pytest_example.handlers.routes.configure_routes",
+      "source": {
+        "id": "tests.test_routes",
+        "type": "MODULE"
+      },
+      "target": {
+        "id": "flask_pytest_example.handlers.routes.configure_routes",
+        "type": "MODULE"
+      },
+      "relationship_type": "IMPORTS"
+    },
+    {
+      "relationship_id": "rel:tests.test_routes.test_base_route:CALLS:flask.Flask",
+      "source": {
+        "id": "tests.test_routes.test_base_route",
+        "type": "FUNCTION"
+      },
+      "target": {
+        "id": "flask.Flask",
+        "type": "FUNCTION"
+      },
+      "relationship_type": "CALLS"
+    },
+    {
+      "relationship_id": "rel:tests.test_routes.test_base_route:CALLS:flask_pytest_example.handlers.routes.configure_routes",
+      "source": {
+        "id": "tests.test_routes.test_base_route",
+        "type": "FUNCTION"
+      },
+      "target": {
+        "id": "flask_pytest_example.handlers.routes.configure_routes",
+        "type": "FUNCTION"
+      },
+      "relationship_type": "CALLS"
+    },
+    {
+      "relationship_id": "rel:tests.test_routes.test_post_route__success:CALLS:flask.Flask",
+      "source": {
+        "id": "tests.test_routes.test_post_route__success",
+        "type": "FUNCTION"
+      },
+      "target": {
+        "id": "flask.Flask",
+        "type": "FUNCTION"
+      },
+      "relationship_type": "CALLS"
+    },
+    {
+      "relationship_id": "rel:tests.test_routes.test_post_route__success:CALLS:flask_pytest_example.handlers.routes.configure_routes",
+      "source": {
+        "id": "tests.test_routes.test_post_route__success",
+        "type": "FUNCTION"
+      },
+      "target": {
+        "id": "flask_pytest_example.handlers.routes.configure_routes",
+        "type": "FUNCTION"
+      },
+      "relationship_type": "CALLS"
+    },
+    {
+      "relationship_id": "rel:tests.test_routes.test_post_route__success:CALLS:json.dumps",
+      "source": {
+        "id": "tests.test_routes.test_post_route__success",
+        "type": "FUNCTION"
+      },
+      "target": {
+        "id": "json.dumps",
+        "type": "FUNCTION"
+      },
+      "relationship_type": "CALLS"
+    },
+    {
+      "relationship_id": "rel:tests.test_routes.test_post_route__failure__unauthorized:CALLS:flask.Flask",
+      "source": {
+        "id": "tests.test_routes.test_post_route__failure__unauthorized",
+        "type": "FUNCTION"
+      },
+      "target": {
+        "id": "flask.Flask",
+        "type": "FUNCTION"
+      },
+      "relationship_type": "CALLS"
+    },
+    {
+      "relationship_id": "rel:tests.test_routes.test_post_route__failure__unauthorized:CALLS:flask_pytest_example.handlers.routes.configure_routes",
+      "source": {
+        "id": "tests.test_routes.test_post_route__failure__unauthorized",
+        "type": "FUNCTION"
+      },
+      "target": {
+        "id": "flask_pytest_example.handlers.routes.configure_routes",
+        "type": "FUNCTION"
+      },
+      "relationship_type": "CALLS"
+    },
+    {
+      "relationship_id": "rel:tests.test_routes.test_post_route__failure__unauthorized:CALLS:json.dumps",
+      "source": {
+        "id": "tests.test_routes.test_post_route__failure__unauthorized",
+        "type": "FUNCTION"
+      },
+      "target": {
+        "id": "json.dumps",
+        "type": "FUNCTION"
+      },
+      "relationship_type": "CALLS"
+    },
+    {
+      "relationship_id": "rel:tests.test_routes.test_post_route__failure__bad_request:CALLS:flask.Flask",
+      "source": {
+        "id": "tests.test_routes.test_post_route__failure__bad_request",
+        "type": "FUNCTION"
+      },
+      "target": {
+        "id": "flask.Flask",
+        "type": "FUNCTION"
+      },
+      "relationship_type": "CALLS"
+    },
+    {
+      "relationship_id": "rel:tests.test_routes.test_post_route__failure__bad_request:CALLS:flask_pytest_example.handlers.routes.configure_routes",
+      "source": {
+        "id": "tests.test_routes.test_post_route__failure__bad_request",
+        "type": "FUNCTION"
+      },
+      "target": {
+        "id": "flask_pytest_example.handlers.routes.configure_routes",
+        "type": "FUNCTION"
+      },
+      "relationship_type": "CALLS"
+    },
+    {
+      "relationship_id": "rel:tests.test_routes.test_post_route__failure__bad_request:CALLS:json.dumps",
+      "source": {
+        "id": "tests.test_routes.test_post_route__failure__bad_request",
+        "type": "FUNCTION"
+      },
+      "target": {
+        "id": "json.dumps",
+        "type": "FUNCTION"
+      },
+      "relationship_type": "CALLS"
+    },
+    {
+      "relationship_id": "rel:handlers.routes.configure_routes:TESTED_BY:tests.test_routes.test_base_route",
+      "source": {
+        "id": "handlers.routes.configure_routes",
+        "type": "FUNCTION"
+      },
+      "target": {
+        "id": "tests.test_routes.test_base_route",
+        "type": "TEST"
+      },
+      "relationship_type": "TESTED_BY"
+    },
+    {
+      "relationship_id": "rel:handlers.routes.configure_routes:TESTED_BY:tests.test_routes.test_post_route__success",
+      "source": {
+        "id": "handlers.routes.configure_routes",
+        "type": "FUNCTION"
+      },
+      "target": {
+        "id": "tests.test_routes.test_post_route__success",
+        "type": "TEST"
+      },
+      "relationship_type": "TESTED_BY"
+    },
+    {
+      "relationship_id": "rel:handlers.routes.configure_routes:TESTED_BY:tests.test_routes.test_post_route__failure__unauthorized",
+      "source": {
+        "id": "handlers.routes.configure_routes",
+        "type": "FUNCTION"
+      },
+      "target": {
+        "id": "tests.test_routes.test_post_route__failure__unauthorized",
+        "type": "TEST"
+      },
+      "relationship_type": "TESTED_BY"
+    },
+    {
+      "relationship_id": "rel:handlers.routes.configure_routes:TESTED_BY:tests.test_routes.test_post_route__failure__bad_request",
+      "source": {
+        "id": "handlers.routes.configure_routes",
+        "type": "FUNCTION"
+      },
+      "target": {
+        "id": "tests.test_routes.test_post_route__failure__bad_request",
+        "type": "TEST"
+      },
+      "relationship_type": "TESTED_BY"
+    },
+    {
+      "relationship_id": "rel::DEPENDS_ON:flask",
+      "source": {
+        "id": "",
+        "type": "MODULE"
+      },
+      "target": {
+        "id": "flask",
+        "type": "DEPENDENCY"
+      },
+      "relationship_type": "DEPENDS_ON"
+    },
+    {
+      "relationship_id": "rel::DEPENDS_ON:pytest",
+      "source": {
+        "id": "",
+        "type": "MODULE"
+      },
+      "target": {
+        "id": "pytest",
+        "type": "DEPENDENCY"
+      },
+      "relationship_type": "DEPENDS_ON"
+    }
+  ],
+  "dependency_graph": {
+    "nodes": [
+      {
+        "id": "mod:",
+        "type": "module",
+        "name": "",
+        "file_id": "file:__init__.py"
+      },
+      {
+        "id": "mod:app",
+        "type": "module",
+        "name": "app",
+        "file_id": "file:app.py"
+      },
+      {
+        "id": "mod:handlers",
+        "type": "module",
+        "name": "handlers",
+        "file_id": "file:handlers/__init__.py"
+      },
+      {
+        "id": "mod:handlers.routes",
+        "type": "module",
+        "name": "routes",
+        "file_id": "file:handlers/routes.py"
+      },
+      {
+        "id": "mod:tests",
+        "type": "module",
+        "name": "tests",
+        "file_id": "file:tests/__init__.py"
+      },
+      {
+        "id": "mod:tests.test_routes",
+        "type": "module",
+        "name": "test_routes",
+        "file_id": "file:tests/test_routes.py"
+      },
+      {
+        "id": "fn:handlers.routes.configure_routes",
+        "type": "function",
+        "name": "configure_routes",
+        "file_id": "file:handlers/routes.py"
+      },
+      {
+        "id": "fn:tests.test_routes.test_base_route",
+        "type": "function",
+        "name": "test_base_route",
+        "file_id": "file:tests/test_routes.py"
+      },
+      {
+        "id": "fn:tests.test_routes.test_post_route__success",
+        "type": "function",
+        "name": "test_post_route__success",
+        "file_id": "file:tests/test_routes.py"
+      },
+      {
+        "id": "fn:tests.test_routes.test_post_route__failure__unauthorized",
+        "type": "function",
+        "name": "test_post_route__failure__unauthorized",
+        "file_id": "file:tests/test_routes.py"
+      },
+      {
+        "id": "fn:tests.test_routes.test_post_route__failure__bad_request",
+        "type": "function",
+        "name": "test_post_route__failure__bad_request",
+        "file_id": "file:tests/test_routes.py"
+      },
+      {
+        "id": "dep:flask",
+        "type": "external_dependency",
+        "name": "flask",
+        "file_id": "file:requirements.txt"
+      },
+      {
+        "id": "dep:pytest",
+        "type": "external_dependency",
+        "name": "pytest",
+        "file_id": "file:requirements.txt"
+      }
+    ],
+    "edges": [
+      {
+        "source_id": "app",
+        "target_id": "flask.Flask",
+        "relationship_type": "IMPORTS"
+      },
+      {
+        "source_id": "app",
+        "target_id": "flask_pytest_example.handlers.routes.configure_routes",
+        "relationship_type": "IMPORTS"
+      },
+      {
+        "source_id": "handlers.routes",
+        "target_id": "flask.request",
+        "relationship_type": "IMPORTS"
+      },
+      {
+        "source_id": "handlers.routes",
+        "target_id": "json",
+        "relationship_type": "IMPORTS"
+      },
+      {
+        "source_id": "handlers.routes.configure_routes",
+        "target_id": "flask.request.get_data",
+        "relationship_type": "CALLS"
+      },
+      {
+        "source_id": "handlers.routes.configure_routes",
+        "target_id": "json.loads",
+        "relationship_type": "CALLS"
+      },
+      {
+        "source_id": "tests.test_routes",
+        "target_id": "flask.Flask",
+        "relationship_type": "IMPORTS"
+      },
+      {
+        "source_id": "tests.test_routes",
+        "target_id": "json",
+        "relationship_type": "IMPORTS"
+      },
+      {
+        "source_id": "tests.test_routes",
+        "target_id": "flask_pytest_example.handlers.routes.configure_routes",
+        "relationship_type": "IMPORTS"
+      },
+      {
+        "source_id": "tests.test_routes.test_base_route",
+        "target_id": "flask.Flask",
+        "relationship_type": "CALLS"
+      },
+      {
+        "source_id": "tests.test_routes.test_base_route",
+        "target_id": "flask_pytest_example.handlers.routes.configure_routes",
+        "relationship_type": "CALLS"
+      },
+      {
+        "source_id": "tests.test_routes.test_post_route__success",
+        "target_id": "flask.Flask",
+        "relationship_type": "CALLS"
+      },
+      {
+        "source_id": "tests.test_routes.test_post_route__success",
+        "target_id": "flask_pytest_example.handlers.routes.configure_routes",
+        "relationship_type": "CALLS"
+      },
+      {
+        "source_id": "tests.test_routes.test_post_route__success",
+        "target_id": "json.dumps",
+        "relationship_type": "CALLS"
+      },
+      {
+        "source_id": "tests.test_routes.test_post_route__failure__unauthorized",
+        "target_id": "flask.Flask",
+        "relationship_type": "CALLS"
+      },
+      {
+        "source_id": "tests.test_routes.test_post_route__failure__unauthorized",
+        "target_id": "flask_pytest_example.handlers.routes.configure_routes",
+        "relationship_type": "CALLS"
+      },
+      {
+        "source_id": "tests.test_routes.test_post_route__failure__unauthorized",
+        "target_id": "json.dumps",
+        "relationship_type": "CALLS"
+      },
+      {
+        "source_id": "tests.test_routes.test_post_route__failure__bad_request",
+        "target_id": "flask.Flask",
+        "relationship_type": "CALLS"
+      },
+      {
+        "source_id": "tests.test_routes.test_post_route__failure__bad_request",
+        "target_id": "flask_pytest_example.handlers.routes.configure_routes",
+        "relationship_type": "CALLS"
+      },
+      {
+        "source_id": "tests.test_routes.test_post_route__failure__bad_request",
+        "target_id": "json.dumps",
+        "relationship_type": "CALLS"
+      },
+      {
+        "source_id": "handlers.routes.configure_routes",
+        "target_id": "tests.test_routes.test_base_route",
+        "relationship_type": "TESTED_BY"
+      },
+      {
+        "source_id": "handlers.routes.configure_routes",
+        "target_id": "tests.test_routes.test_post_route__success",
+        "relationship_type": "TESTED_BY"
+      },
+      {
+        "source_id": "handlers.routes.configure_routes",
+        "target_id": "tests.test_routes.test_post_route__failure__unauthorized",
+        "relationship_type": "TESTED_BY"
+      },
+      {
+        "source_id": "handlers.routes.configure_routes",
+        "target_id": "tests.test_routes.test_post_route__failure__bad_request",
+        "relationship_type": "TESTED_BY"
+      },
+      {
+        "source_id": "",
+        "target_id": "flask",
+        "relationship_type": "DEPENDS_ON"
+      },
+      {
+        "source_id": "",
+        "target_id": "pytest",
+        "relationship_type": "DEPENDS_ON"
+      }
+    ]
+  },
+  "changes": {
+    "base_version": {
+      "commit_sha": "0000000000000000000000000000000000000000",
+      "branch": "string"
+    },
+    "target_version": {
+      "commit_sha": "0000000000000000000000000000000000000000",
+      "branch": "string"
+    },
+    "files": {
+      "added": [],
+      "modified": [],
+      "deleted": [],
+      "renamed": []
+    },
+    "packages": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    },
+    "modules": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    },
+    "classes": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    },
+    "functions": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    },
+    "methods": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    },
+    "endpoints": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    },
+    "database_models": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    },
+    "test_functions": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    },
+    "dependencies": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    },
+    "relationships": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "architecture": {
+    "components": [],
+    "layers": [],
+    "services": [],
+    "entry_points": [],
+    "circular_dependencies": []
+  },
+  "configuration": {
+    "frameworks": [
+      "pytest"
+    ],
+    "package_managers": [
+      "pip"
+    ],
+    "configuration_files": []
+  },
+  "diagnostics": []
+}

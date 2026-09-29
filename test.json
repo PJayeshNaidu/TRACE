@@ -1,0 +1,459 @@
+{
+  "schema_version": "<schema_version>",
+
+  "analysis_run": {
+    "analysis_run_id": "<analysis_run_id>",
+    "repository_id": "<repository_id>",
+    "status": "<status>",
+    "started_at": "<timestamp>",
+    "completed_at": "<timestamp>",
+    "duration_ms": "<duration_ms>",
+    "analyzer_version": "<analyzer_version>"
+  },
+
+  "repository": {
+    "repository_id": "<repository_id>",
+    "name": "<repository_name>",
+    "url": "<repository_url>",
+    "root_path": "<repository_root_path>",
+    "default_branch": "<default_branch>"
+  },
+
+  "version_control": {
+
+    "current_version": {
+      "commit_sha": "<commit_sha>",
+      "branch": "<branch_name>",
+      "tag": "<tag_or_null>"
+    },
+
+    "branches": [
+      {
+        "branch_id": "<branch_id>",
+        "name": "<branch_name>",
+        "is_default": "<true_or_false>",
+        "is_remote": "<true_or_false>",
+        "remote": "<remote_name_or_null>",
+
+        "head_commit": "<commit_sha>",
+
+        "base_branch": "<base_branch_or_null>",
+        "base_commit": "<base_commit_sha_or_null>",
+
+        "commits": [
+          {
+            "commit_sha": "<commit_sha>",
+            "short_sha": "<short_sha>",
+            "parent_commits": [
+              "<parent_commit_sha>"
+            ],
+            "message": "<commit_message>",
+            "author": "<author>",
+            "timestamp": "<commit_timestamp>"
+          }
+        ]
+      }
+    ],
+
+    "tags": [
+      {
+        "name": "<tag_name>",
+        "commit_sha": "<commit_sha>",
+        "created_at": "<timestamp>"
+      }
+    ]
+  },
+
+  "metrics": {
+    "total_files": "<total_files>",
+    "python_files": "<python_files>",
+    "modules": "<modules>",
+    "packages": "<packages>",
+    "classes": "<classes>",
+    "functions": "<functions>",
+    "methods": "<methods>",
+    "endpoints": "<endpoints>",
+    "database_models": "<database_models>",
+    "test_functions": "<test_functions>",
+    "external_dependencies": "<external_dependencies>",
+    "total_relationships": "<total_relationships>",
+    "diagnostics_count": "<diagnostics_count>"
+  },
+
+  "files": [
+    {
+      "file_id": "<file_id>",
+      "name": "<file_name>",
+      "path": "<file_path>",
+      "extension": "<extension>",
+      "language": "<language>",
+      "size_bytes": "<size>",
+      "line_count": "<line_count>",
+      "hash": "<file_hash>",
+      "is_test": "<true_or_false>",
+      "is_generated": "<true_or_false>"
+    }
+  ],
+
+  "python_files": [
+    {
+      "file": {
+        "file_id": "<file_id>",
+        "name": "<python_file_name>",
+        "path": "<python_file_path>",
+        "location": "<file_location>",
+        "size_bytes": "<size>",
+        "line_count": "<line_count>",
+        "hash": "<file_hash>"
+      },
+
+      "package": {
+        "package_id": "<package_id>",
+        "name": "<package_name>",
+        "path": "<package_path>"
+      },
+
+      "modules": [
+        {
+          "module_id": "<module_id>",
+          "name": "<module_name>",
+          "qualified_name": "<qualified_module_name>",
+          "location": {
+            "line_start": "<line_start>",
+            "line_end": "<line_end>"
+          }
+        }
+      ],
+
+      "classes": [
+        {
+          "class_id": "<class_id>",
+          "name": "<class_name>",
+          "qualified_name": "<qualified_class_name>",
+
+          "location": {
+            "line_start": "<line_start>",
+            "line_end": "<line_end>"
+          },
+
+          "base_classes": [
+            "<base_class>"
+          ],
+
+          "methods": [
+            {
+              "method_id": "<method_id>",
+              "name": "<method_name>",
+              "qualified_name": "<qualified_method_name>",
+              "location": {
+                "line_start": "<line_start>",
+                "line_end": "<line_end>"
+              }
+            }
+          ]
+        }
+      ],
+
+      "functions": [
+        {
+          "function_id": "<function_id>",
+          "name": "<function_name>",
+          "qualified_name": "<qualified_function_name>",
+
+          "location": {
+            "line_start": "<line_start>",
+            "line_end": "<line_end>"
+          },
+
+          "parameters": [
+            {
+              "name": "<parameter_name>",
+              "type": "<parameter_type>",
+              "default": "<default_value>"
+            }
+          ],
+
+          "return_type": "<return_type>",
+          "is_async": "<true_or_false>"
+        }
+      ],
+
+      "methods": [
+        {
+          "method_id": "<method_id>",
+          "name": "<method_name>",
+          "qualified_name": "<qualified_method_name>",
+          "class_id": "<class_id>",
+
+          "location": {
+            "line_start": "<line_start>",
+            "line_end": "<line_end>"
+          },
+
+          "parameters": [
+            {
+              "name": "<parameter_name>",
+              "type": "<parameter_type>"
+            }
+          ],
+
+          "return_type": "<return_type>",
+          "is_async": "<true_or_false>"
+        }
+      ],
+
+      "endpoints": [
+        {
+          "endpoint_id": "<endpoint_id>",
+          "method": "<http_method>",
+          "path": "<endpoint_path>",
+          "framework": "<framework>",
+          "handler": "<handler_function>",
+          "location": {
+            "line_start": "<line_start>",
+            "line_end": "<line_end>"
+          }
+        }
+      ],
+
+      "database_models": [
+        {
+          "model_id": "<model_id>",
+          "name": "<model_name>",
+          "table_name": "<table_name>",
+          "framework": "<database_framework>",
+          "location": {
+            "line_start": "<line_start>",
+            "line_end": "<line_end>"
+          },
+
+          "fields": [
+            {
+              "name": "<field_name>",
+              "type": "<field_type>",
+              "nullable": "<true_or_false>",
+              "primary_key": "<true_or_false>"
+            }
+          ]
+        }
+      ],
+
+      "test_functions": [
+        {
+          "test_id": "<test_id>",
+          "name": "<test_function_name>",
+          "framework": "<test_framework>",
+
+          "location": {
+            "line_start": "<line_start>",
+            "line_end": "<line_end>"
+          },
+
+          "tests": [
+            {
+              "target_id": "<target_entity_id>",
+              "target_type": "<function|method|class|endpoint>"
+            }
+          ]
+        }
+      ],
+
+      "imports": [
+        {
+          "import_id": "<import_id>",
+          "name": "<import_name>",
+          "source": "<import_source>",
+          "type": "<internal|external>",
+          "location": {
+            "line": "<line_number>"
+          }
+        }
+      ],
+
+      "calls": [
+        {
+          "call_id": "<call_id>",
+          "caller_id": "<caller_entity_id>",
+          "callee_id": "<callee_entity_id>",
+          "callee_type": "<function|method|external>",
+          "location": {
+            "line": "<line_number>"
+          }
+        }
+      ],
+
+      "dependencies": [
+        {
+          "dependency_id": "<dependency_id>",
+          "target_id": "<target_entity_id>",
+          "target_type": "<module|package|class|function|method|database_model|external_dependency>",
+          "dependency_type": "<imports|calls|uses|reads|writes|inherits|depends_on>"
+        }
+      ],
+
+      "relationships": [
+        {
+          "relationship_id": "<relationship_id>",
+
+          "source": {
+            "id": "<source_entity_id>",
+            "type": "<source_entity_type>"
+          },
+
+          "target": {
+            "id": "<target_entity_id>",
+            "type": "<target_entity_type>"
+          },
+
+          "relationship_type": "<relationship_type>",
+
+          "location": {
+            "line": "<line_number>"
+          }
+        }
+      ]
+    }
+  ],
+
+  "external_dependencies": [
+    {
+      "dependency_id": "<dependency_id>",
+      "name": "<dependency_name>",
+      "version": "<dependency_version>",
+      "type": "<dependency_type>",
+      "source": "<requirements_file_or_pyproject>"
+    }
+  ],
+
+  "relationships": [
+    {
+      "relationship_id": "<relationship_id>",
+
+      "source": {
+        "id": "<source_entity_id>",
+        "type": "<source_entity_type>"
+      },
+
+      "target": {
+        "id": "<target_entity_id>",
+        "type": "<target_entity_type>"
+      },
+
+      "relationship_type": "<relationship_type>"
+    }
+  ],
+
+  "dependency_graph": {
+    "nodes": [
+      {
+        "id": "<entity_id>",
+        "type": "<entity_type>",
+        "name": "<entity_name>",
+        "file_id": "<file_id>"
+      }
+    ],
+
+    "edges": [
+      {
+        "source_id": "<source_entity_id>",
+        "target_id": "<target_entity_id>",
+        "relationship_type": "<relationship_type>"
+      }
+    ]
+  },
+
+  "changes": {
+    "base_version": {
+      "commit_sha": "<base_commit_sha>",
+      "branch": "<base_branch>"
+    },
+
+    "target_version": {
+      "commit_sha": "<target_commit_sha>",
+      "branch": "<target_branch>"
+    },
+
+    "files": {
+      "added": [],
+      "modified": [],
+      "deleted": [],
+      "renamed": []
+    },
+
+    "packages": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    },
+
+    "modules": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    },
+
+    "classes": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    },
+
+    "functions": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    },
+
+    "methods": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    },
+
+    "endpoints": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    },
+
+    "database_models": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    },
+
+    "test_functions": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    },
+
+    "dependencies": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    },
+
+    "relationships": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+
+  "architecture": {
+    "components": [],
+    "layers": [],
+    "services": [],
+    "entry_points": [],
+    "circular_dependencies": []
+  },
+
+  "configuration": {
+    "frameworks": [],
+    "package_managers": [],
+    "configuration_files": []
+  },
+
+  "diagnostics": []
+}

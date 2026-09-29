@@ -31,7 +31,9 @@ def syntax_error_repo_path(fixtures_dir: Path) -> Path:
 
 @pytest.fixture
 def empty_repo_path(fixtures_dir: Path) -> Path:
-    return fixtures_dir / "empty_repo"
+    path = fixtures_dir / "empty_repo"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
 
 
 @pytest.fixture

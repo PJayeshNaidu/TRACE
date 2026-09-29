@@ -5,6 +5,10 @@ import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from trace.analysis.analyzer import AnalysisContext, CodeAnalyzer
+from trace.analysis.summary import (
+    build_repository_summary_payload,
+    save_repository_summary_json,
+)
 from trace.domain.analysis import (
     AnalysisRun,
     AnalysisStatus,
@@ -22,7 +26,7 @@ from trace.infrastructure.database.gateway import DatabaseGateway
 from trace.infrastructure.database.models import AnalysisRunOrm, ProjectOrm, RepositoryOrm
 from trace.infrastructure.git.provider import GitProvider
 from trace.infrastructure.storage.artifact_store import FileArtifactStore
-from typing import TYPE_CHECKING, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 import structlog
 from sqlalchemy import func, select
@@ -58,12 +62,14 @@ class AnalysisService:
         artifact_store: FileArtifactStore,
         git_provider: GitProvider,
         graph_service: "GraphService | None" = None,
+        repo_analysis_dir: Path | str | None = None,
     ) -> None:
         self._db_gateway = db_gateway
         self._analyzer = analyzer
         self._artifact_store = artifact_store
         self._git_provider = git_provider
         self._graph_service = graph_service
+        self._repo_analysis_dir = repo_analysis_dir
 
     async def trigger_analysis(
         self,
@@ -195,6 +201,8 @@ class AnalysisService:
                 return
 
         try:
+            resolved_ref = target_ref if (target_ref and target_ref != "string") else "HEAD"
+
             # 2. Resolve working directory and commit SHA (auto-clone for REMOTE repos)
             is_remote = repo_orm.type == "REMOTE" or repo_location.startswith(("http://", "https://", "git@", "ssh://"))
             if is_remote:
@@ -208,8 +216,12 @@ class AnalysisService:
                 working_tree_path = Path(repo_location).resolve()
 
             commit_hash = await self._git_provider.resolve_revision(
-                working_tree_path, target_ref or "HEAD"
+                working_tree_path, resolved_ref
             )
+            if not commit_hash and resolved_ref != "HEAD":
+                commit_hash = await self._git_provider.resolve_revision(
+                    working_tree_path, "HEAD"
+                )
             if not commit_hash:
                 commit_hash = "0000000000000000000000000000000000000000"
 
@@ -272,6 +284,76 @@ class AnalysisService:
                     duration_ms=round(duration_ms, 2),
                     total_files=run_orm.total_files,
                 )
+
+            # 6. Generate and save repository summary JSON strictly adhering to test.json schema
+            repo_name = (
+                getattr(repo_orm, "name", None) or Path(repo_location).name or "repository"
+            )
+            repo_url = repo_location
+            is_remote_loc = (
+                repo_location.startswith("http://")
+                or repo_location.startswith("https://")
+                or repo_location.startswith("git@")
+            )
+            if not is_remote_loc:
+                try:
+                    if hasattr(self._git_provider, "_run_command"):
+                        rc, out, _ = await self._git_provider._run_command(
+                            ["-C", str(working_tree_path), "config", "--get", "remote.origin.url"],
+                            timeout_seconds=getattr(self._git_provider, "timeout_seconds", 10.0),
+                        )
+                        if rc == 0 and out.strip():
+                            repo_url = out.strip()
+                except Exception:
+                    pass
+
+            branch = (
+                target_ref
+                if (target_ref and target_ref not in ("HEAD", "string"))
+                else (repo_orm.default_branch if repo_orm else None)
+            )
+            if not branch:
+                try:
+                    if hasattr(self._git_provider, "_run_command"):
+                        rc, out, _ = await self._git_provider._run_command(
+                            ["-C", str(working_tree_path), "branch", "--show-current"],
+                            timeout_seconds=getattr(self._git_provider, "timeout_seconds", 10.0),
+                        )
+                        if rc == 0 and out.strip():
+                            branch = out.strip()
+                except Exception:
+                    pass
+            branch = branch or "main"
+
+            default_branch = (repo_orm.default_branch if repo_orm else None) or branch
+            summary_payload = build_repository_summary_payload(
+                analysis_run_id=analysis_run_id,
+                repository_id=repository_id,
+                status=AnalysisStatus.COMPLETED.value,
+                started_at=started_at,
+                completed_at=completed_at,
+                duration_ms=duration_ms,
+                repo_name=repo_name,
+                repo_url=repo_url,
+                branch=branch,
+                commit_hash=commit_hash,
+                working_tree_path=working_tree_path,
+                artifact=result,
+                default_branch=default_branch,
+            )
+            saved_summary_path = save_repository_summary_json(
+                summary_payload=summary_payload,
+                repo_name=repo_name,
+                output_dir=self._repo_analysis_dir,
+                run_id=analysis_run_id,
+                branch_name=branch,
+            )
+            logger.info(
+                "Repository summary JSON stored successfully per test.json schema",
+                run_id=str(analysis_run_id),
+                repo_name=repo_name,
+                summary_path=str(saved_summary_path),
+            )
 
             # Auto-trigger F03 dependency graph build after successful analysis
             if self._graph_service is not None:
@@ -398,3 +480,47 @@ class AnalysisService:
         except FileNotFoundError as exc:
             logger.error("Artifact file missing for completed run", run_id=str(analysis_run_id))
             raise AnalysisRunNotFoundError(analysis_run_id) from exc
+
+    async def get_repository_summary(self, analysis_run_id: uuid.UUID) -> dict[str, Any]:
+        """Fetch or reconstruct the complete repository summary conforming strictly to test.json."""
+        run = await self.get_analysis_run(analysis_run_id)
+        if run.status != AnalysisStatus.COMPLETED:
+            raise InvalidAnalysisStateError(
+                run_id=analysis_run_id,
+                current_status=run.status.value,
+                operation="retrieve summary for",
+            )
+
+        artifact = await self.get_analysis_artifact(analysis_run_id)
+
+        async with self._db_gateway.session() as session:
+            repo_stmt = select(RepositoryOrm).where(RepositoryOrm.id == run.repository_id)
+            repo_orm = (await session.execute(repo_stmt)).scalar_one_or_none()
+
+        repo_location = repo_orm.location if repo_orm else ""
+        repo_name = getattr(repo_orm, "name", None) or Path(repo_location).name or "repository"
+        repo_url = repo_location
+        branch = run.target_ref or (repo_orm.default_branch if repo_orm else None) or "main"
+        working_tree_path = Path(repo_location).resolve() if repo_location else Path.cwd()
+
+        default_branch = (repo_orm.default_branch if repo_orm else None) or branch
+        return build_repository_summary_payload(
+            analysis_run_id=analysis_run_id,
+            repository_id=run.repository_id,
+            status=run.status.value,
+            started_at=run.started_at,
+            completed_at=run.completed_at,
+            duration_ms=run.duration_ms,
+            repo_name=repo_name,
+            repo_url=repo_url,
+            branch=branch,
+            commit_hash=(
+                run.commit_hash
+                or run.resolved_revision
+                or "0000000000000000000000000000000000000000"
+            ),
+            working_tree_path=working_tree_path,
+            artifact=artifact,
+            default_branch=default_branch,
+        )
+

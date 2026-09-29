@@ -2,6 +2,11 @@
 
 import uuid
 from trace.analysis.analyzer import CodeAnalyzer
+from trace.analysis.summary import (
+    format_summary_filename,
+    resolve_repo_analysis_dir,
+    save_repository_summary_json,
+)
 from trace.api.analyses.schemas import (
     AnalysisRunListResponse,
     AnalysisRunResponse,
@@ -20,9 +25,9 @@ from trace.api.repositories.router import get_git_provider
 from trace.domain.analysis import (
     AnalysisStatus,
     DiagnosticSeverity,
-    FileKind,
     RelationshipKind,
 )
+from trace.domain.exceptions import InvalidAnalysisStateError
 from trace.infrastructure.database.gateway import DatabaseGateway
 from trace.infrastructure.git.provider import GitProvider
 from trace.infrastructure.storage.artifact_store import FileArtifactStore
@@ -30,6 +35,7 @@ from trace.services.analysis import AnalysisService
 from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, status
+from fastapi.responses import FileResponse
 
 analyses_router = APIRouter(tags=["analyses"])
 
@@ -79,6 +85,8 @@ def get_analysis_service(
 
 
 
+
+
 class BackgroundTasksAnalysisExecutor:
     """Dispatches asynchronous analysis execution tasks via FastAPI BackgroundTasks."""
 
@@ -113,9 +121,14 @@ async def trigger_repository_analysis(
     service: Annotated[AnalysisService, Depends(get_analysis_service)],
 ) -> AnalysisRunResponse:
     executor = BackgroundTasksAnalysisExecutor(background_tasks=background_tasks, service=service)
+    sanitized_target_ref = (
+        None
+        if payload.target_ref in ("string", "", None)
+        else payload.target_ref
+    )
     run = await service.trigger_analysis(
         repository_id=repository_id,
-        target_ref=payload.target_ref,
+        target_ref=sanitized_target_ref,
         exclude_patterns=payload.exclude_patterns,
         executor=executor,
     )
@@ -167,7 +180,7 @@ async def get_analysis_run(
     "/analyses/{analysis_run_id}/summary",
     response_model=AnalysisSummaryResponse,
     status_code=status.HTTP_200_OK,
-    summary="Get high-level summary metrics of an analysis run",
+    summary="Get high-level summary metrics and test.json payload of an analysis run",
 )
 async def get_analysis_summary(
     analysis_run_id: uuid.UUID,
@@ -175,22 +188,46 @@ async def get_analysis_summary(
 ) -> AnalysisSummaryResponse:
     run = await service.get_analysis_run(analysis_run_id)
     if run.status == AnalysisStatus.COMPLETED:
-        artifact = await service.get_analysis_artifact(analysis_run_id)
-        metrics: dict[str, int | float] = {
-            "total_files": len(artifact.files),
-            "python_files": sum(1 for f in artifact.files if f.file_type == FileKind.PYTHON),
-            "modules": len(artifact.modules),
-            "packages": sum(1 for m in artifact.modules if m.is_package),
-            "classes": len(artifact.classes),
-            "functions": len(artifact.functions),
-            "methods": sum(1 for f in artifact.functions if f.enclosing_class is not None),
-            "endpoints": len(artifact.endpoints),
-            "database_models": len(artifact.database_references),
-            "test_functions": len(artifact.tests),
-            "external_dependencies": len(artifact.dependencies),
-            "total_relationships": len(artifact.relationships),
-            "diagnostics_count": len(artifact.diagnostics),
-        }
+        summary_payload = await service.get_repository_summary(analysis_run_id)
+        repo_name = summary_payload["repository"]["name"]
+        branch_name = (
+            summary_payload.get("version_control", {}).get("current_version", {}).get("branch")
+            or summary_payload["repository"].get("default_branch")
+            or "main"
+        )
+        summary_dir = resolve_repo_analysis_dir(service._repo_analysis_dir)
+        filename = format_summary_filename(repo_name, branch_name)
+        summary_file = summary_dir / filename
+        if not summary_file.exists():
+            save_repository_summary_json(
+                summary_payload=summary_payload,
+                repo_name=repo_name,
+                output_dir=service._repo_analysis_dir,
+                run_id=analysis_run_id,
+                branch_name=branch_name,
+            )
+
+        return AnalysisSummaryResponse(
+            analysis_run_id=run.id,
+            repository_id=run.repository_id,
+            status=run.status,
+            duration_ms=run.duration_ms,
+            metrics=summary_payload["metrics"],
+            schema_version=summary_payload.get("schema_version"),
+            analysis_run=summary_payload["analysis_run"],
+            repository=summary_payload["repository"],
+            version_control=summary_payload.get("version_control"),
+            files=summary_payload.get("files"),
+            python_files=summary_payload["python_files"],
+            external_dependencies=summary_payload.get("external_dependencies"),
+            relationships=summary_payload.get("relationships"),
+            dependency_graph=summary_payload.get("dependency_graph"),
+            changes=summary_payload.get("changes"),
+            architecture=summary_payload.get("architecture"),
+            configuration=summary_payload.get("configuration"),
+            diagnostics=summary_payload.get("diagnostics"),
+            summary_file_path=str(summary_file) if summary_file.exists() else None,
+        )
     else:
         metrics = {
             "total_files": run.total_files,
@@ -207,12 +244,49 @@ async def get_analysis_summary(
             "total_relationships": run.total_relationships,
             "diagnostics_count": run.total_diagnostics,
         }
-    return AnalysisSummaryResponse(
-        analysis_run_id=run.id,
-        repository_id=run.repository_id,
-        status=run.status,
-        duration_ms=run.duration_ms,
-        metrics=metrics,
+        return AnalysisSummaryResponse(
+            analysis_run_id=run.id,
+            repository_id=run.repository_id,
+            status=run.status,
+            duration_ms=run.duration_ms,
+            metrics=metrics,
+        )
+
+
+@analyses_router.get(
+    "/analyses/{analysis_run_id}/summary/file",
+    status_code=status.HTTP_200_OK,
+    summary="Download the repository summary JSON file strictly formatted per test.json",
+)
+async def get_analysis_summary_file(
+    analysis_run_id: uuid.UUID,
+    service: Annotated[AnalysisService, Depends(get_analysis_service)],
+) -> FileResponse:
+    run = await service.get_analysis_run(analysis_run_id)
+    if run.status != AnalysisStatus.COMPLETED:
+        raise InvalidAnalysisStateError(
+            run_id=analysis_run_id,
+            current_status=run.status.value,
+            operation="download summary file for",
+        )
+    summary_payload = await service.get_repository_summary(analysis_run_id)
+    repo_name = summary_payload["repository"]["name"]
+    branch_name = (
+        summary_payload.get("version_control", {}).get("current_version", {}).get("branch")
+        or summary_payload["repository"].get("default_branch")
+        or "main"
+    )
+    file_path = save_repository_summary_json(
+        summary_payload=summary_payload,
+        repo_name=repo_name,
+        output_dir=service._repo_analysis_dir,
+        run_id=analysis_run_id,
+        branch_name=branch_name,
+    )
+    return FileResponse(
+        path=str(file_path),
+        media_type="application/json",
+        filename=file_path.name,
     )
 
 
