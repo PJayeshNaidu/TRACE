@@ -1,0 +1,2584 @@
+{
+  "schema_version": "1.0.0",
+  "analysis_run": {
+    "analysis_run_id": "d6b31806-0df9-499e-b18c-7a481fd6b8a3",
+    "repository_id": "b05ac70c-5838-4b25-899d-f688b160b0bf",
+    "status": "COMPLETED",
+    "started_at": "2026-09-29T11:59:24.636619+00:00",
+    "completed_at": "2026-09-29T11:59:24.669552+00:00",
+    "duration_ms": 32.93,
+    "analyzer_version": "0.1.0"
+  },
+  "repository": {
+    "repository_id": "b05ac70c-5838-4b25-899d-f688b160b0bf",
+    "name": "sample_repo",
+    "url": "C:\\Course Work\\Course Tasks\\TRACE\\backend\\tests\\fixtures\\sample_repo",
+    "root_path": "C:\\Course Work\\Course Tasks\\TRACE\\backend\\tests\\fixtures\\sample_repo",
+    "default_branch": "main"
+  },
+  "version_control": {
+    "current_version": {
+      "commit_sha": "1234567890123456789012345678901234567890",
+      "branch": "main",
+      "tag": null
+    },
+    "branches": [
+      {
+        "branch_id": "branch:main",
+        "name": "main",
+        "is_default": true,
+        "is_remote": false,
+        "remote": null,
+        "head_commit": "1234567890123456789012345678901234567890",
+        "base_branch": null,
+        "base_commit": null,
+        "commits": [
+          {
+            "commit_sha": "1234567890123456789012345678901234567890",
+            "short_sha": "1234567",
+            "parent_commits": [],
+            "message": "Commit 1234567",
+            "author": "TRACE",
+            "timestamp": "2026-09-29T11:59:24.669552+00:00"
+          }
+        ]
+      }
+    ],
+    "tags": []
+  },
+  "metrics": {
+    "total_files": 9,
+    "python_files": 4,
+    "modules": 7,
+    "packages": 2,
+    "classes": 5,
+    "functions": 4,
+    "methods": 5,
+    "endpoints": 2,
+    "database_models": 4,
+    "test_functions": 2,
+    "external_dependencies": 4,
+    "total_relationships": 54,
+    "diagnostics_count": 0
+  },
+  "files": [
+    {
+      "file_id": "file:app/__init__.py",
+      "name": "__init__.py",
+      "path": "app/__init__.py",
+      "extension": ".py",
+      "language": "python",
+      "size_bytes": 57,
+      "line_count": 3,
+      "hash": "1531a450869f9a04d324c45af4b670b4a0a98a437b2af8a324f41690b501ab32",
+      "is_test": false,
+      "is_generated": false
+    },
+    {
+      "file_id": "file:app/config.py",
+      "name": "config.py",
+      "path": "app/config.py",
+      "extension": ".py",
+      "language": "python",
+      "size_bytes": 331,
+      "line_count": 16,
+      "hash": "3e651d3544eeff240b16e01f9a289e4033faf1bf215ca6b41cbc981376eb5a84",
+      "is_test": false,
+      "is_generated": false
+    },
+    {
+      "file_id": "file:app/main.py",
+      "name": "main.py",
+      "path": "app/main.py",
+      "extension": ".py",
+      "language": "python",
+      "size_bytes": 533,
+      "line_count": 22,
+      "hash": "df4dfde965cd028c3fd9b74d6d903068f775cb49785f8c375bd01c1f6392af1c",
+      "is_test": false,
+      "is_generated": false
+    },
+    {
+      "file_id": "file:app/models.py",
+      "name": "models.py",
+      "path": "app/models.py",
+      "extension": ".py",
+      "language": "python",
+      "size_bytes": 436,
+      "line_count": 20,
+      "hash": "c8b9ecacec25a4ac5760e32d8625b675354fcc766362be5540ddf4cb5e8c6d59",
+      "is_test": false,
+      "is_generated": false
+    },
+    {
+      "file_id": "file:app/services.py",
+      "name": "services.py",
+      "path": "app/services.py",
+      "extension": ".py",
+      "language": "python",
+      "size_bytes": 808,
+      "line_count": 33,
+      "hash": "c2e79c03a15fd691dbd2feef74ce7c1b23e7ffe9f74295c68bf8d7a6aa03cfb2",
+      "is_test": false,
+      "is_generated": false
+    },
+    {
+      "file_id": "file:app/tests/__init__.py",
+      "name": "__init__.py",
+      "path": "app/tests/__init__.py",
+      "extension": ".py",
+      "language": "python",
+      "size_bytes": 36,
+      "line_count": 1,
+      "hash": "fa736d1bd1706d30651a2a6390a7386ff59cb56383e8769b0b1bb27c3e90a9d6",
+      "is_test": true,
+      "is_generated": false
+    },
+    {
+      "file_id": "file:app/tests/test_services.py",
+      "name": "test_services.py",
+      "path": "app/tests/test_services.py",
+      "extension": ".py",
+      "language": "python",
+      "size_bytes": 490,
+      "line_count": 18,
+      "hash": "d9316b213b0fb99d6e2246c698b73184d5113a17a78c6882d316bf4304719af3",
+      "is_test": true,
+      "is_generated": false
+    },
+    {
+      "file_id": "file:pyproject.toml",
+      "name": "pyproject.toml",
+      "path": "pyproject.toml",
+      "extension": ".toml",
+      "language": "toml",
+      "size_bytes": 275,
+      "line_count": 14,
+      "hash": "32d3e5754f6c103dec804026e9d7a49d8058b28635c1a8bf974567ef977276b0",
+      "is_test": false,
+      "is_generated": false
+    },
+    {
+      "file_id": "file:README.md",
+      "name": "README.md",
+      "path": "README.md",
+      "extension": ".md",
+      "language": "markdown",
+      "size_bytes": 224,
+      "line_count": 6,
+      "hash": "c302d86a91926759ca7de369082c35b19c096407a09520de753b63cafd720c7e",
+      "is_test": false,
+      "is_generated": false
+    }
+  ],
+  "python_files": [
+    {
+      "file": {
+        "file_id": "file:app/__init__.py",
+        "name": "__init__.py",
+        "path": "app/__init__.py",
+        "location": "C:\\Course Work\\Course Tasks\\TRACE\\backend\\tests\\fixtures\\sample_repo\\app\\__init__.py",
+        "size_bytes": 57,
+        "line_count": 3,
+        "hash": "1531a450869f9a04d324c45af4b670b4a0a98a437b2af8a324f41690b501ab32"
+      },
+      "package": {
+        "package_id": "package:app",
+        "name": "app",
+        "path": "app"
+      },
+      "modules": [
+        {
+          "module_id": "mod:app",
+          "name": "app",
+          "qualified_name": "app",
+          "location": {
+            "line_start": 1,
+            "line_end": 3
+          }
+        }
+      ],
+      "classes": [],
+      "functions": [],
+      "methods": [],
+      "endpoints": [],
+      "database_models": [],
+      "test_functions": [],
+      "imports": [],
+      "calls": [],
+      "dependencies": [],
+      "relationships": [
+        {
+          "relationship_id": "rel:app/__init__.py:1:DOCUMENTED_BY:Module docstring: app",
+          "source": {
+            "id": "app",
+            "type": "MODULE"
+          },
+          "target": {
+            "id": "Module docstring: app",
+            "type": "DOCUMENTATION"
+          },
+          "relationship_type": "DOCUMENTED_BY",
+          "location": {
+            "line": 1
+          }
+        }
+      ]
+    },
+    {
+      "file": {
+        "file_id": "file:app/main.py",
+        "name": "main.py",
+        "path": "app/main.py",
+        "location": "C:\\Course Work\\Course Tasks\\TRACE\\backend\\tests\\fixtures\\sample_repo\\app\\main.py",
+        "size_bytes": 533,
+        "line_count": 22,
+        "hash": "df4dfde965cd028c3fd9b74d6d903068f775cb49785f8c375bd01c1f6392af1c"
+      },
+      "package": {
+        "package_id": "package:app",
+        "name": "app",
+        "path": "app"
+      },
+      "modules": [
+        {
+          "module_id": "mod:app.main",
+          "name": "main",
+          "qualified_name": "app.main",
+          "location": {
+            "line_start": 1,
+            "line_end": 22
+          }
+        }
+      ],
+      "classes": [],
+      "functions": [
+        {
+          "function_id": "fn:app.main.list_items",
+          "name": "list_items",
+          "qualified_name": "app.main.list_items",
+          "location": {
+            "line_start": 12,
+            "line_end": 14
+          },
+          "parameters": [],
+          "return_type": "Any",
+          "is_async": false
+        },
+        {
+          "function_id": "fn:app.main.create_item",
+          "name": "create_item",
+          "qualified_name": "app.main.create_item",
+          "location": {
+            "line_start": 18,
+            "line_end": 22
+          },
+          "parameters": [
+            {
+              "name": "title",
+              "type": "str",
+              "default": null
+            },
+            {
+              "name": "description",
+              "type": "str",
+              "default": "''"
+            }
+          ],
+          "return_type": "Any",
+          "is_async": false
+        }
+      ],
+      "methods": [],
+      "endpoints": [
+        {
+          "endpoint_id": "endpoint:GET:/items",
+          "method": "GET",
+          "path": "/items",
+          "framework": "FastAPI",
+          "handler": "app.main.list_items",
+          "location": {
+            "line_start": 12,
+            "line_end": 14
+          }
+        },
+        {
+          "endpoint_id": "endpoint:POST:/items",
+          "method": "POST",
+          "path": "/items",
+          "framework": "FastAPI",
+          "handler": "app.main.create_item",
+          "location": {
+            "line_start": 18,
+            "line_end": 22
+          }
+        }
+      ],
+      "database_models": [],
+      "test_functions": [],
+      "imports": [
+        {
+          "import_id": "import:app/main.py:3:fastapi.FastAPI",
+          "name": "fastapi.FastAPI",
+          "source": "app.main",
+          "type": "external",
+          "location": {
+            "line": 3
+          }
+        },
+        {
+          "import_id": "import:app/main.py:3:fastapi.HTTPException",
+          "name": "fastapi.HTTPException",
+          "source": "app.main",
+          "type": "external",
+          "location": {
+            "line": 3
+          }
+        },
+        {
+          "import_id": "import:app/main.py:5:app.services.ItemService",
+          "name": "app.services.ItemService",
+          "source": "app.main",
+          "type": "internal",
+          "location": {
+            "line": 5
+          }
+        }
+      ],
+      "calls": [
+        {
+          "call_id": "call:app/main.py:11:app.main.list_items->app.get",
+          "caller_id": "fn:app.main.list_items",
+          "callee_id": "app.get",
+          "callee_type": "method",
+          "location": {
+            "line": 11
+          }
+        },
+        {
+          "call_id": "call:app/main.py:14:app.main.list_items->service.get_items",
+          "caller_id": "fn:app.main.list_items",
+          "callee_id": "service.get_items",
+          "callee_type": "method",
+          "location": {
+            "line": 14
+          }
+        },
+        {
+          "call_id": "call:app/main.py:17:app.main.create_item->app.post",
+          "caller_id": "fn:app.main.create_item",
+          "callee_id": "app.post",
+          "callee_type": "method",
+          "location": {
+            "line": 17
+          }
+        },
+        {
+          "call_id": "call:app/main.py:22:app.main.create_item->service.create_item",
+          "caller_id": "fn:app.main.create_item",
+          "callee_id": "service.create_item",
+          "callee_type": "method",
+          "location": {
+            "line": 22
+          }
+        },
+        {
+          "call_id": "call:app/main.py:21:app.main.create_item->HTTPException",
+          "caller_id": "fn:app.main.create_item",
+          "callee_id": "fastapi.HTTPException",
+          "callee_type": "external",
+          "location": {
+            "line": 21
+          }
+        }
+      ],
+      "dependencies": [
+        {
+          "dependency_id": "dep:app/main.py:app.main",
+          "target_id": "app.main",
+          "target_type": "external_dependency",
+          "dependency_type": "imports"
+        },
+        {
+          "dependency_id": "dep:app/main.py:app.main",
+          "target_id": "app.main",
+          "target_type": "external_dependency",
+          "dependency_type": "imports"
+        },
+        {
+          "dependency_id": "dep:app/main.py:app.main",
+          "target_id": "app.main",
+          "target_type": "module",
+          "dependency_type": "imports"
+        },
+        {
+          "dependency_id": "dep:app/main.py:app.get",
+          "target_id": "app.get",
+          "target_type": "method",
+          "dependency_type": "calls"
+        },
+        {
+          "dependency_id": "dep:app/main.py:service.get_items",
+          "target_id": "service.get_items",
+          "target_type": "method",
+          "dependency_type": "calls"
+        },
+        {
+          "dependency_id": "dep:app/main.py:app.post",
+          "target_id": "app.post",
+          "target_type": "method",
+          "dependency_type": "calls"
+        },
+        {
+          "dependency_id": "dep:app/main.py:service.create_item",
+          "target_id": "service.create_item",
+          "target_type": "method",
+          "dependency_type": "calls"
+        },
+        {
+          "dependency_id": "dep:app/main.py:fastapi.HTTPException",
+          "target_id": "fastapi.HTTPException",
+          "target_type": "external",
+          "dependency_type": "calls"
+        }
+      ],
+      "relationships": [
+        {
+          "relationship_id": "rel:app/main.py:3:IMPORTS:fastapi.FastAPI",
+          "source": {
+            "id": "app.main",
+            "type": "MODULE"
+          },
+          "target": {
+            "id": "fastapi.FastAPI",
+            "type": "MODULE"
+          },
+          "relationship_type": "IMPORTS",
+          "location": {
+            "line": 3
+          }
+        },
+        {
+          "relationship_id": "rel:app/main.py:3:IMPORTS:fastapi.HTTPException",
+          "source": {
+            "id": "app.main",
+            "type": "MODULE"
+          },
+          "target": {
+            "id": "fastapi.HTTPException",
+            "type": "MODULE"
+          },
+          "relationship_type": "IMPORTS",
+          "location": {
+            "line": 3
+          }
+        },
+        {
+          "relationship_id": "rel:app/main.py:5:IMPORTS:app.services.ItemService",
+          "source": {
+            "id": "app.main",
+            "type": "MODULE"
+          },
+          "target": {
+            "id": "app.services.ItemService",
+            "type": "MODULE"
+          },
+          "relationship_type": "IMPORTS",
+          "location": {
+            "line": 5
+          }
+        },
+        {
+          "relationship_id": "rel:app/main.py:21:CALLS:fastapi.HTTPException",
+          "source": {
+            "id": "app.main.create_item",
+            "type": "FUNCTION"
+          },
+          "target": {
+            "id": "fastapi.HTTPException",
+            "type": "FUNCTION"
+          },
+          "relationship_type": "CALLS",
+          "location": {
+            "line": 21
+          }
+        },
+        {
+          "relationship_id": "rel:app/main.py:12:EXPOSES:GET /items",
+          "source": {
+            "id": "app.main.list_items",
+            "type": "FUNCTION"
+          },
+          "target": {
+            "id": "GET /items",
+            "type": "ENDPOINT"
+          },
+          "relationship_type": "EXPOSES",
+          "location": {
+            "line": 12
+          }
+        },
+        {
+          "relationship_id": "rel:app/main.py:18:EXPOSES:POST /items",
+          "source": {
+            "id": "app.main.create_item",
+            "type": "FUNCTION"
+          },
+          "target": {
+            "id": "POST /items",
+            "type": "ENDPOINT"
+          },
+          "relationship_type": "EXPOSES",
+          "location": {
+            "line": 18
+          }
+        },
+        {
+          "relationship_id": "rel:app/main.py:1:DOCUMENTED_BY:Module docstring: app.main",
+          "source": {
+            "id": "app.main",
+            "type": "MODULE"
+          },
+          "target": {
+            "id": "Module docstring: app.main",
+            "type": "DOCUMENTATION"
+          },
+          "relationship_type": "DOCUMENTED_BY",
+          "location": {
+            "line": 1
+          }
+        },
+        {
+          "relationship_id": "rel:app/main.py:12:DOCUMENTED_BY:Function docstring: app.main.list_items",
+          "source": {
+            "id": "app.main.list_items",
+            "type": "FUNCTION"
+          },
+          "target": {
+            "id": "Function docstring: app.main.list_items",
+            "type": "DOCUMENTATION"
+          },
+          "relationship_type": "DOCUMENTED_BY",
+          "location": {
+            "line": 12
+          }
+        },
+        {
+          "relationship_id": "rel:app/main.py:18:DOCUMENTED_BY:Function docstring: app.main.create_item",
+          "source": {
+            "id": "app.main.create_item",
+            "type": "FUNCTION"
+          },
+          "target": {
+            "id": "Function docstring: app.main.create_item",
+            "type": "DOCUMENTATION"
+          },
+          "relationship_type": "DOCUMENTED_BY",
+          "location": {
+            "line": 18
+          }
+        }
+      ]
+    },
+    {
+      "file": {
+        "file_id": "file:app/models.py",
+        "name": "models.py",
+        "path": "app/models.py",
+        "location": "C:\\Course Work\\Course Tasks\\TRACE\\backend\\tests\\fixtures\\sample_repo\\app\\models.py",
+        "size_bytes": 436,
+        "line_count": 20,
+        "hash": "c8b9ecacec25a4ac5760e32d8625b675354fcc766362be5540ddf4cb5e8c6d59"
+      },
+      "package": {
+        "package_id": "package:app",
+        "name": "app",
+        "path": "app"
+      },
+      "modules": [
+        {
+          "module_id": "mod:app.models",
+          "name": "models",
+          "qualified_name": "app.models",
+          "location": {
+            "line_start": 1,
+            "line_end": 20
+          }
+        }
+      ],
+      "classes": [
+        {
+          "class_id": "class:app.models.Base",
+          "name": "Base",
+          "qualified_name": "app.models.Base",
+          "location": {
+            "line_start": 7,
+            "line_end": 10
+          },
+          "base_classes": [
+            "DeclarativeBase"
+          ],
+          "methods": []
+        },
+        {
+          "class_id": "class:app.models.ItemOrm",
+          "name": "ItemOrm",
+          "qualified_name": "app.models.ItemOrm",
+          "location": {
+            "line_start": 13,
+            "line_end": 20
+          },
+          "base_classes": [
+            "Base"
+          ],
+          "methods": []
+        }
+      ],
+      "functions": [],
+      "methods": [],
+      "endpoints": [],
+      "database_models": [
+        {
+          "model_id": "db:Base",
+          "name": "Base",
+          "table_name": "base",
+          "framework": "sqlalchemy",
+          "location": {
+            "line_start": 7,
+            "line_end": 10
+          },
+          "fields": []
+        },
+        {
+          "model_id": "db:items",
+          "name": "items",
+          "table_name": "items",
+          "framework": "sqlalchemy",
+          "location": {
+            "line_start": 13,
+            "line_end": 20
+          },
+          "fields": []
+        }
+      ],
+      "test_functions": [],
+      "imports": [
+        {
+          "import_id": "import:app/models.py:3:sqlalchemy.Column",
+          "name": "sqlalchemy.Column",
+          "source": "app.models",
+          "type": "external",
+          "location": {
+            "line": 3
+          }
+        },
+        {
+          "import_id": "import:app/models.py:3:sqlalchemy.Integer",
+          "name": "sqlalchemy.Integer",
+          "source": "app.models",
+          "type": "external",
+          "location": {
+            "line": 3
+          }
+        },
+        {
+          "import_id": "import:app/models.py:3:sqlalchemy.String",
+          "name": "sqlalchemy.String",
+          "source": "app.models",
+          "type": "external",
+          "location": {
+            "line": 3
+          }
+        },
+        {
+          "import_id": "import:app/models.py:4:sqlalchemy.orm.DeclarativeBase",
+          "name": "sqlalchemy.orm.DeclarativeBase",
+          "source": "app.models",
+          "type": "external",
+          "location": {
+            "line": 4
+          }
+        }
+      ],
+      "calls": [],
+      "dependencies": [
+        {
+          "dependency_id": "dep:app/models.py:app.models",
+          "target_id": "app.models",
+          "target_type": "external_dependency",
+          "dependency_type": "imports"
+        },
+        {
+          "dependency_id": "dep:app/models.py:app.models",
+          "target_id": "app.models",
+          "target_type": "external_dependency",
+          "dependency_type": "imports"
+        },
+        {
+          "dependency_id": "dep:app/models.py:app.models",
+          "target_id": "app.models",
+          "target_type": "external_dependency",
+          "dependency_type": "imports"
+        },
+        {
+          "dependency_id": "dep:app/models.py:app.models",
+          "target_id": "app.models",
+          "target_type": "external_dependency",
+          "dependency_type": "imports"
+        }
+      ],
+      "relationships": [
+        {
+          "relationship_id": "rel:app/models.py:3:IMPORTS:sqlalchemy.Column",
+          "source": {
+            "id": "app.models",
+            "type": "MODULE"
+          },
+          "target": {
+            "id": "sqlalchemy.Column",
+            "type": "MODULE"
+          },
+          "relationship_type": "IMPORTS",
+          "location": {
+            "line": 3
+          }
+        },
+        {
+          "relationship_id": "rel:app/models.py:3:IMPORTS:sqlalchemy.Integer",
+          "source": {
+            "id": "app.models",
+            "type": "MODULE"
+          },
+          "target": {
+            "id": "sqlalchemy.Integer",
+            "type": "MODULE"
+          },
+          "relationship_type": "IMPORTS",
+          "location": {
+            "line": 3
+          }
+        },
+        {
+          "relationship_id": "rel:app/models.py:3:IMPORTS:sqlalchemy.String",
+          "source": {
+            "id": "app.models",
+            "type": "MODULE"
+          },
+          "target": {
+            "id": "sqlalchemy.String",
+            "type": "MODULE"
+          },
+          "relationship_type": "IMPORTS",
+          "location": {
+            "line": 3
+          }
+        },
+        {
+          "relationship_id": "rel:app/models.py:4:IMPORTS:sqlalchemy.orm.DeclarativeBase",
+          "source": {
+            "id": "app.models",
+            "type": "MODULE"
+          },
+          "target": {
+            "id": "sqlalchemy.orm.DeclarativeBase",
+            "type": "MODULE"
+          },
+          "relationship_type": "IMPORTS",
+          "location": {
+            "line": 4
+          }
+        },
+        {
+          "relationship_id": "rel:app/models.py:7:EXTENDS:sqlalchemy.orm.DeclarativeBase",
+          "source": {
+            "id": "app.models.Base",
+            "type": "CLASS"
+          },
+          "target": {
+            "id": "sqlalchemy.orm.DeclarativeBase",
+            "type": "CLASS"
+          },
+          "relationship_type": "EXTENDS",
+          "location": {
+            "line": 7
+          }
+        },
+        {
+          "relationship_id": "rel:app/models.py:13:EXTENDS:Base",
+          "source": {
+            "id": "app.models.ItemOrm",
+            "type": "CLASS"
+          },
+          "target": {
+            "id": "Base",
+            "type": "CLASS"
+          },
+          "relationship_type": "EXTENDS",
+          "location": {
+            "line": 13
+          }
+        },
+        {
+          "relationship_id": "rel:app/models.py:7:WRITES:Base",
+          "source": {
+            "id": "app.models.Base",
+            "type": "CLASS"
+          },
+          "target": {
+            "id": "Base",
+            "type": "DATABASE"
+          },
+          "relationship_type": "WRITES",
+          "location": {
+            "line": 7
+          }
+        },
+        {
+          "relationship_id": "rel:app/models.py:13:WRITES:items",
+          "source": {
+            "id": "app.models.ItemOrm",
+            "type": "CLASS"
+          },
+          "target": {
+            "id": "items",
+            "type": "DATABASE"
+          },
+          "relationship_type": "WRITES",
+          "location": {
+            "line": 13
+          }
+        },
+        {
+          "relationship_id": "rel:app/models.py:1:DOCUMENTED_BY:Module docstring: app.models",
+          "source": {
+            "id": "app.models",
+            "type": "MODULE"
+          },
+          "target": {
+            "id": "Module docstring: app.models",
+            "type": "DOCUMENTATION"
+          },
+          "relationship_type": "DOCUMENTED_BY",
+          "location": {
+            "line": 1
+          }
+        },
+        {
+          "relationship_id": "rel:app/models.py:7:DOCUMENTED_BY:Class docstring: app.models.Base",
+          "source": {
+            "id": "app.models.Base",
+            "type": "CLASS"
+          },
+          "target": {
+            "id": "Class docstring: app.models.Base",
+            "type": "DOCUMENTATION"
+          },
+          "relationship_type": "DOCUMENTED_BY",
+          "location": {
+            "line": 7
+          }
+        },
+        {
+          "relationship_id": "rel:app/models.py:13:DOCUMENTED_BY:Class docstring: app.models.ItemOrm",
+          "source": {
+            "id": "app.models.ItemOrm",
+            "type": "CLASS"
+          },
+          "target": {
+            "id": "Class docstring: app.models.ItemOrm",
+            "type": "DOCUMENTATION"
+          },
+          "relationship_type": "DOCUMENTED_BY",
+          "location": {
+            "line": 13
+          }
+        }
+      ]
+    },
+    {
+      "file": {
+        "file_id": "file:app/services.py",
+        "name": "services.py",
+        "path": "app/services.py",
+        "location": "C:\\Course Work\\Course Tasks\\TRACE\\backend\\tests\\fixtures\\sample_repo\\app\\services.py",
+        "size_bytes": 808,
+        "line_count": 33,
+        "hash": "c2e79c03a15fd691dbd2feef74ce7c1b23e7ffe9f74295c68bf8d7a6aa03cfb2"
+      },
+      "package": {
+        "package_id": "package:app",
+        "name": "app",
+        "path": "app"
+      },
+      "modules": [
+        {
+          "module_id": "mod:app.services",
+          "name": "services",
+          "qualified_name": "app.services",
+          "location": {
+            "line_start": 1,
+            "line_end": 33
+          }
+        }
+      ],
+      "classes": [
+        {
+          "class_id": "class:app.services.BaseService",
+          "name": "BaseService",
+          "qualified_name": "app.services.BaseService",
+          "location": {
+            "line_start": 6,
+            "line_end": 14
+          },
+          "base_classes": [],
+          "methods": []
+        },
+        {
+          "class_id": "class:app.services.ItemService",
+          "name": "ItemService",
+          "qualified_name": "app.services.ItemService",
+          "location": {
+            "line_start": 17,
+            "line_end": 33
+          },
+          "base_classes": [
+            "BaseService"
+          ],
+          "methods": []
+        }
+      ],
+      "functions": [],
+      "methods": [
+        {
+          "method_id": "fn:app.services.BaseService.__init__",
+          "name": "__init__",
+          "qualified_name": "app.services.BaseService.__init__",
+          "class_id": "class:BaseService",
+          "location": {
+            "line_start": 9,
+            "line_end": 10
+          },
+          "parameters": [
+            {
+              "name": "self",
+              "type": "Any"
+            }
+          ],
+          "return_type": "None",
+          "is_async": false
+        },
+        {
+          "method_id": "fn:app.services.BaseService.ping",
+          "name": "ping",
+          "qualified_name": "app.services.BaseService.ping",
+          "class_id": "class:BaseService",
+          "location": {
+            "line_start": 12,
+            "line_end": 14
+          },
+          "parameters": [
+            {
+              "name": "self",
+              "type": "Any"
+            }
+          ],
+          "return_type": "str",
+          "is_async": false
+        },
+        {
+          "method_id": "fn:app.services.ItemService.__init__",
+          "name": "__init__",
+          "qualified_name": "app.services.ItemService.__init__",
+          "class_id": "class:ItemService",
+          "location": {
+            "line_start": 20,
+            "line_end": 22
+          },
+          "parameters": [
+            {
+              "name": "self",
+              "type": "Any"
+            }
+          ],
+          "return_type": "None",
+          "is_async": false
+        },
+        {
+          "method_id": "fn:app.services.ItemService.create_item",
+          "name": "create_item",
+          "qualified_name": "app.services.ItemService.create_item",
+          "class_id": "class:ItemService",
+          "location": {
+            "line_start": 24,
+            "line_end": 29
+          },
+          "parameters": [
+            {
+              "name": "self",
+              "type": "Any"
+            },
+            {
+              "name": "title",
+              "type": "str"
+            },
+            {
+              "name": "description",
+              "type": "str"
+            }
+          ],
+          "return_type": "ItemOrm",
+          "is_async": false
+        },
+        {
+          "method_id": "fn:app.services.ItemService.get_items",
+          "name": "get_items",
+          "qualified_name": "app.services.ItemService.get_items",
+          "class_id": "class:ItemService",
+          "location": {
+            "line_start": 31,
+            "line_end": 33
+          },
+          "parameters": [
+            {
+              "name": "self",
+              "type": "Any"
+            }
+          ],
+          "return_type": "list[ItemOrm]",
+          "is_async": false
+        }
+      ],
+      "endpoints": [],
+      "database_models": [
+        {
+          "model_id": "db:ItemService",
+          "name": "ItemService",
+          "table_name": "itemservice",
+          "framework": "sqlalchemy",
+          "location": {
+            "line_start": 17,
+            "line_end": 33
+          },
+          "fields": []
+        }
+      ],
+      "test_functions": [],
+      "imports": [
+        {
+          "import_id": "import:app/services.py:3:app.models.ItemOrm",
+          "name": "app.models.ItemOrm",
+          "source": "app.services",
+          "type": "internal",
+          "location": {
+            "line": 3
+          }
+        }
+      ],
+      "calls": [
+        {
+          "call_id": "call:app/services.py:21:app.services.ItemService.__init__->super().__init__",
+          "caller_id": "fn:app.services.ItemService.__init__",
+          "callee_id": "super().__init__",
+          "callee_type": "method",
+          "location": {
+            "line": 21
+          }
+        },
+        {
+          "call_id": "call:app/services.py:21:app.services.ItemService.__init__->super",
+          "caller_id": "fn:app.services.ItemService.__init__",
+          "callee_id": "super",
+          "callee_type": "function",
+          "location": {
+            "line": 21
+          }
+        },
+        {
+          "call_id": "call:app/services.py:26:app.services.ItemService.create_item->self.ping",
+          "caller_id": "fn:app.services.ItemService.create_item",
+          "callee_id": "self.ping",
+          "callee_type": "method",
+          "location": {
+            "line": 26
+          }
+        },
+        {
+          "call_id": "call:app/services.py:27:app.services.ItemService.create_item->ItemOrm",
+          "caller_id": "fn:app.services.ItemService.create_item",
+          "callee_id": "app.models.ItemOrm",
+          "callee_type": "function",
+          "location": {
+            "line": 27
+          }
+        },
+        {
+          "call_id": "call:app/services.py:28:app.services.ItemService.create_item->self._items.append",
+          "caller_id": "fn:app.services.ItemService.create_item",
+          "callee_id": "self._items.append",
+          "callee_type": "method",
+          "location": {
+            "line": 28
+          }
+        },
+        {
+          "call_id": "call:app/services.py:33:app.services.ItemService.get_items->list",
+          "caller_id": "fn:app.services.ItemService.get_items",
+          "callee_id": "list",
+          "callee_type": "function",
+          "location": {
+            "line": 33
+          }
+        }
+      ],
+      "dependencies": [
+        {
+          "dependency_id": "dep:app/services.py:app.services",
+          "target_id": "app.services",
+          "target_type": "module",
+          "dependency_type": "imports"
+        },
+        {
+          "dependency_id": "dep:app/services.py:super().__init__",
+          "target_id": "super().__init__",
+          "target_type": "method",
+          "dependency_type": "calls"
+        },
+        {
+          "dependency_id": "dep:app/services.py:super",
+          "target_id": "super",
+          "target_type": "function",
+          "dependency_type": "calls"
+        },
+        {
+          "dependency_id": "dep:app/services.py:self.ping",
+          "target_id": "self.ping",
+          "target_type": "method",
+          "dependency_type": "calls"
+        },
+        {
+          "dependency_id": "dep:app/services.py:app.models.ItemOrm",
+          "target_id": "app.models.ItemOrm",
+          "target_type": "function",
+          "dependency_type": "calls"
+        },
+        {
+          "dependency_id": "dep:app/services.py:self._items.append",
+          "target_id": "self._items.append",
+          "target_type": "method",
+          "dependency_type": "calls"
+        },
+        {
+          "dependency_id": "dep:app/services.py:list",
+          "target_id": "list",
+          "target_type": "function",
+          "dependency_type": "calls"
+        }
+      ],
+      "relationships": [
+        {
+          "relationship_id": "rel:app/services.py:3:IMPORTS:app.models.ItemOrm",
+          "source": {
+            "id": "app.services",
+            "type": "MODULE"
+          },
+          "target": {
+            "id": "app.models.ItemOrm",
+            "type": "MODULE"
+          },
+          "relationship_type": "IMPORTS",
+          "location": {
+            "line": 3
+          }
+        },
+        {
+          "relationship_id": "rel:app/services.py:17:EXTENDS:BaseService",
+          "source": {
+            "id": "app.services.ItemService",
+            "type": "CLASS"
+          },
+          "target": {
+            "id": "BaseService",
+            "type": "CLASS"
+          },
+          "relationship_type": "EXTENDS",
+          "location": {
+            "line": 17
+          }
+        },
+        {
+          "relationship_id": "rel:app/services.py:27:CALLS:app.models.ItemOrm",
+          "source": {
+            "id": "app.services.ItemService.create_item",
+            "type": "FUNCTION"
+          },
+          "target": {
+            "id": "app.models.ItemOrm",
+            "type": "FUNCTION"
+          },
+          "relationship_type": "CALLS",
+          "location": {
+            "line": 27
+          }
+        },
+        {
+          "relationship_id": "rel:app/services.py:17:WRITES:ItemService",
+          "source": {
+            "id": "app.services.ItemService",
+            "type": "CLASS"
+          },
+          "target": {
+            "id": "ItemService",
+            "type": "DATABASE"
+          },
+          "relationship_type": "WRITES",
+          "location": {
+            "line": 17
+          }
+        },
+        {
+          "relationship_id": "rel:app/services.py:1:DOCUMENTED_BY:Module docstring: app.services",
+          "source": {
+            "id": "app.services",
+            "type": "MODULE"
+          },
+          "target": {
+            "id": "Module docstring: app.services",
+            "type": "DOCUMENTATION"
+          },
+          "relationship_type": "DOCUMENTED_BY",
+          "location": {
+            "line": 1
+          }
+        },
+        {
+          "relationship_id": "rel:app/services.py:6:DOCUMENTED_BY:Class docstring: app.services.BaseService",
+          "source": {
+            "id": "app.services.BaseService",
+            "type": "CLASS"
+          },
+          "target": {
+            "id": "Class docstring: app.services.BaseService",
+            "type": "DOCUMENTATION"
+          },
+          "relationship_type": "DOCUMENTED_BY",
+          "location": {
+            "line": 6
+          }
+        },
+        {
+          "relationship_id": "rel:app/services.py:17:DOCUMENTED_BY:Class docstring: app.services.ItemService",
+          "source": {
+            "id": "app.services.ItemService",
+            "type": "CLASS"
+          },
+          "target": {
+            "id": "Class docstring: app.services.ItemService",
+            "type": "DOCUMENTATION"
+          },
+          "relationship_type": "DOCUMENTED_BY",
+          "location": {
+            "line": 17
+          }
+        },
+        {
+          "relationship_id": "rel:app/services.py:12:DOCUMENTED_BY:Function docstring: app.services.BaseService.ping",
+          "source": {
+            "id": "app.services.BaseService.ping",
+            "type": "FUNCTION"
+          },
+          "target": {
+            "id": "Function docstring: app.services.BaseService.ping",
+            "type": "DOCUMENTATION"
+          },
+          "relationship_type": "DOCUMENTED_BY",
+          "location": {
+            "line": 12
+          }
+        },
+        {
+          "relationship_id": "rel:app/services.py:24:DOCUMENTED_BY:Function docstring: app.services.ItemService.create_item",
+          "source": {
+            "id": "app.services.ItemService.create_item",
+            "type": "FUNCTION"
+          },
+          "target": {
+            "id": "Function docstring: app.services.ItemService.create_item",
+            "type": "DOCUMENTATION"
+          },
+          "relationship_type": "DOCUMENTED_BY",
+          "location": {
+            "line": 24
+          }
+        },
+        {
+          "relationship_id": "rel:app/services.py:31:DOCUMENTED_BY:Function docstring: app.services.ItemService.get_items",
+          "source": {
+            "id": "app.services.ItemService.get_items",
+            "type": "FUNCTION"
+          },
+          "target": {
+            "id": "Function docstring: app.services.ItemService.get_items",
+            "type": "DOCUMENTATION"
+          },
+          "relationship_type": "DOCUMENTED_BY",
+          "location": {
+            "line": 31
+          }
+        }
+      ]
+    }
+  ],
+  "external_dependencies": [
+    {
+      "dependency_id": "dep:fastapi",
+      "name": "fastapi",
+      "version": ">=0.115.0",
+      "type": "external",
+      "source": "pyproject.toml"
+    },
+    {
+      "dependency_id": "dep:pydantic",
+      "name": "pydantic",
+      "version": ">=2.8.0",
+      "type": "external",
+      "source": "pyproject.toml"
+    },
+    {
+      "dependency_id": "dep:sqlalchemy",
+      "name": "sqlalchemy",
+      "version": ">=2.0.0",
+      "type": "external",
+      "source": "pyproject.toml"
+    },
+    {
+      "dependency_id": "dep:pytest",
+      "name": "pytest",
+      "version": ">=8.0.0",
+      "type": "external",
+      "source": "pyproject.toml"
+    }
+  ],
+  "relationships": [
+    {
+      "relationship_id": "rel:app.config:IMPORTS:os",
+      "source": {
+        "id": "app.config",
+        "type": "MODULE"
+      },
+      "target": {
+        "id": "os",
+        "type": "MODULE"
+      },
+      "relationship_type": "IMPORTS"
+    },
+    {
+      "relationship_id": "rel:app.config:IMPORTS:pydantic.BaseModel",
+      "source": {
+        "id": "app.config",
+        "type": "MODULE"
+      },
+      "target": {
+        "id": "pydantic.BaseModel",
+        "type": "MODULE"
+      },
+      "relationship_type": "IMPORTS"
+    },
+    {
+      "relationship_id": "rel:app.config.AppSettings:EXTENDS:pydantic.BaseModel",
+      "source": {
+        "id": "app.config.AppSettings",
+        "type": "CLASS"
+      },
+      "target": {
+        "id": "pydantic.BaseModel",
+        "type": "CLASS"
+      },
+      "relationship_type": "EXTENDS"
+    },
+    {
+      "relationship_id": "rel:app.main:IMPORTS:fastapi.FastAPI",
+      "source": {
+        "id": "app.main",
+        "type": "MODULE"
+      },
+      "target": {
+        "id": "fastapi.FastAPI",
+        "type": "MODULE"
+      },
+      "relationship_type": "IMPORTS"
+    },
+    {
+      "relationship_id": "rel:app.main:IMPORTS:fastapi.HTTPException",
+      "source": {
+        "id": "app.main",
+        "type": "MODULE"
+      },
+      "target": {
+        "id": "fastapi.HTTPException",
+        "type": "MODULE"
+      },
+      "relationship_type": "IMPORTS"
+    },
+    {
+      "relationship_id": "rel:app.main:IMPORTS:app.services.ItemService",
+      "source": {
+        "id": "app.main",
+        "type": "MODULE"
+      },
+      "target": {
+        "id": "app.services.ItemService",
+        "type": "MODULE"
+      },
+      "relationship_type": "IMPORTS"
+    },
+    {
+      "relationship_id": "rel:app.main.create_item:CALLS:fastapi.HTTPException",
+      "source": {
+        "id": "app.main.create_item",
+        "type": "FUNCTION"
+      },
+      "target": {
+        "id": "fastapi.HTTPException",
+        "type": "FUNCTION"
+      },
+      "relationship_type": "CALLS"
+    },
+    {
+      "relationship_id": "rel:app.models:IMPORTS:sqlalchemy.Column",
+      "source": {
+        "id": "app.models",
+        "type": "MODULE"
+      },
+      "target": {
+        "id": "sqlalchemy.Column",
+        "type": "MODULE"
+      },
+      "relationship_type": "IMPORTS"
+    },
+    {
+      "relationship_id": "rel:app.models:IMPORTS:sqlalchemy.Integer",
+      "source": {
+        "id": "app.models",
+        "type": "MODULE"
+      },
+      "target": {
+        "id": "sqlalchemy.Integer",
+        "type": "MODULE"
+      },
+      "relationship_type": "IMPORTS"
+    },
+    {
+      "relationship_id": "rel:app.models:IMPORTS:sqlalchemy.String",
+      "source": {
+        "id": "app.models",
+        "type": "MODULE"
+      },
+      "target": {
+        "id": "sqlalchemy.String",
+        "type": "MODULE"
+      },
+      "relationship_type": "IMPORTS"
+    },
+    {
+      "relationship_id": "rel:app.models:IMPORTS:sqlalchemy.orm.DeclarativeBase",
+      "source": {
+        "id": "app.models",
+        "type": "MODULE"
+      },
+      "target": {
+        "id": "sqlalchemy.orm.DeclarativeBase",
+        "type": "MODULE"
+      },
+      "relationship_type": "IMPORTS"
+    },
+    {
+      "relationship_id": "rel:app.models.Base:EXTENDS:sqlalchemy.orm.DeclarativeBase",
+      "source": {
+        "id": "app.models.Base",
+        "type": "CLASS"
+      },
+      "target": {
+        "id": "sqlalchemy.orm.DeclarativeBase",
+        "type": "CLASS"
+      },
+      "relationship_type": "EXTENDS"
+    },
+    {
+      "relationship_id": "rel:app.models.ItemOrm:EXTENDS:Base",
+      "source": {
+        "id": "app.models.ItemOrm",
+        "type": "CLASS"
+      },
+      "target": {
+        "id": "Base",
+        "type": "CLASS"
+      },
+      "relationship_type": "EXTENDS"
+    },
+    {
+      "relationship_id": "rel:app.services:IMPORTS:app.models.ItemOrm",
+      "source": {
+        "id": "app.services",
+        "type": "MODULE"
+      },
+      "target": {
+        "id": "app.models.ItemOrm",
+        "type": "MODULE"
+      },
+      "relationship_type": "IMPORTS"
+    },
+    {
+      "relationship_id": "rel:app.services.ItemService:EXTENDS:BaseService",
+      "source": {
+        "id": "app.services.ItemService",
+        "type": "CLASS"
+      },
+      "target": {
+        "id": "BaseService",
+        "type": "CLASS"
+      },
+      "relationship_type": "EXTENDS"
+    },
+    {
+      "relationship_id": "rel:app.services.ItemService.create_item:CALLS:app.models.ItemOrm",
+      "source": {
+        "id": "app.services.ItemService.create_item",
+        "type": "FUNCTION"
+      },
+      "target": {
+        "id": "app.models.ItemOrm",
+        "type": "FUNCTION"
+      },
+      "relationship_type": "CALLS"
+    },
+    {
+      "relationship_id": "rel:app.tests.test_services:IMPORTS:app.services.ItemService",
+      "source": {
+        "id": "app.tests.test_services",
+        "type": "MODULE"
+      },
+      "target": {
+        "id": "app.services.ItemService",
+        "type": "MODULE"
+      },
+      "relationship_type": "IMPORTS"
+    },
+    {
+      "relationship_id": "rel:app.tests.test_services.test_service_initialization:CALLS:app.services.ItemService",
+      "source": {
+        "id": "app.tests.test_services.test_service_initialization",
+        "type": "FUNCTION"
+      },
+      "target": {
+        "id": "app.services.ItemService",
+        "type": "FUNCTION"
+      },
+      "relationship_type": "CALLS"
+    },
+    {
+      "relationship_id": "rel:app.tests.test_services.test_create_item:CALLS:app.services.ItemService",
+      "source": {
+        "id": "app.tests.test_services.test_create_item",
+        "type": "FUNCTION"
+      },
+      "target": {
+        "id": "app.services.ItemService",
+        "type": "FUNCTION"
+      },
+      "relationship_type": "CALLS"
+    },
+    {
+      "relationship_id": "rel:app.main.list_items:EXPOSES:GET /items",
+      "source": {
+        "id": "app.main.list_items",
+        "type": "FUNCTION"
+      },
+      "target": {
+        "id": "GET /items",
+        "type": "ENDPOINT"
+      },
+      "relationship_type": "EXPOSES"
+    },
+    {
+      "relationship_id": "rel:app.main.create_item:EXPOSES:POST /items",
+      "source": {
+        "id": "app.main.create_item",
+        "type": "FUNCTION"
+      },
+      "target": {
+        "id": "POST /items",
+        "type": "ENDPOINT"
+      },
+      "relationship_type": "EXPOSES"
+    },
+    {
+      "relationship_id": "rel:app.config.AppSettings:CONFIGURED_BY:app_name",
+      "source": {
+        "id": "app.config.AppSettings",
+        "type": "CLASS"
+      },
+      "target": {
+        "id": "app_name",
+        "type": "CONFIG"
+      },
+      "relationship_type": "CONFIGURED_BY"
+    },
+    {
+      "relationship_id": "rel:app.config.AppSettings:CONFIGURED_BY:database_url",
+      "source": {
+        "id": "app.config.AppSettings",
+        "type": "CLASS"
+      },
+      "target": {
+        "id": "database_url",
+        "type": "CONFIG"
+      },
+      "relationship_type": "CONFIGURED_BY"
+    },
+    {
+      "relationship_id": "rel:app.config.AppSettings:CONFIGURED_BY:debug_mode",
+      "source": {
+        "id": "app.config.AppSettings",
+        "type": "CLASS"
+      },
+      "target": {
+        "id": "debug_mode",
+        "type": "CONFIG"
+      },
+      "relationship_type": "CONFIGURED_BY"
+    },
+    {
+      "relationship_id": "rel:app/config.py:READS:DATABASE_URL",
+      "source": {
+        "id": "app/config.py",
+        "type": "MODULE"
+      },
+      "target": {
+        "id": "DATABASE_URL",
+        "type": "CONFIG"
+      },
+      "relationship_type": "READS"
+    },
+    {
+      "relationship_id": "rel:app.config.AppSettings:WRITES:AppSettings",
+      "source": {
+        "id": "app.config.AppSettings",
+        "type": "CLASS"
+      },
+      "target": {
+        "id": "AppSettings",
+        "type": "DATABASE"
+      },
+      "relationship_type": "WRITES"
+    },
+    {
+      "relationship_id": "rel:app.models.Base:WRITES:Base",
+      "source": {
+        "id": "app.models.Base",
+        "type": "CLASS"
+      },
+      "target": {
+        "id": "Base",
+        "type": "DATABASE"
+      },
+      "relationship_type": "WRITES"
+    },
+    {
+      "relationship_id": "rel:app.models.ItemOrm:WRITES:items",
+      "source": {
+        "id": "app.models.ItemOrm",
+        "type": "CLASS"
+      },
+      "target": {
+        "id": "items",
+        "type": "DATABASE"
+      },
+      "relationship_type": "WRITES"
+    },
+    {
+      "relationship_id": "rel:app.services.ItemService:WRITES:ItemService",
+      "source": {
+        "id": "app.services.ItemService",
+        "type": "CLASS"
+      },
+      "target": {
+        "id": "ItemService",
+        "type": "DATABASE"
+      },
+      "relationship_type": "WRITES"
+    },
+    {
+      "relationship_id": "rel:app.services.ItemService:TESTED_BY:app.tests.test_services.test_service_initialization",
+      "source": {
+        "id": "app.services.ItemService",
+        "type": "CLASS"
+      },
+      "target": {
+        "id": "app.tests.test_services.test_service_initialization",
+        "type": "TEST"
+      },
+      "relationship_type": "TESTED_BY"
+    },
+    {
+      "relationship_id": "rel:app.services.ItemService:TESTED_BY:app.tests.test_services.test_create_item",
+      "source": {
+        "id": "app.services.ItemService",
+        "type": "CLASS"
+      },
+      "target": {
+        "id": "app.tests.test_services.test_create_item",
+        "type": "TEST"
+      },
+      "relationship_type": "TESTED_BY"
+    },
+    {
+      "relationship_id": "rel:app:DOCUMENTED_BY:Module docstring: app",
+      "source": {
+        "id": "app",
+        "type": "MODULE"
+      },
+      "target": {
+        "id": "Module docstring: app",
+        "type": "DOCUMENTATION"
+      },
+      "relationship_type": "DOCUMENTED_BY"
+    },
+    {
+      "relationship_id": "rel:app.config:DOCUMENTED_BY:Module docstring: app.config",
+      "source": {
+        "id": "app.config",
+        "type": "MODULE"
+      },
+      "target": {
+        "id": "Module docstring: app.config",
+        "type": "DOCUMENTATION"
+      },
+      "relationship_type": "DOCUMENTED_BY"
+    },
+    {
+      "relationship_id": "rel:app.main:DOCUMENTED_BY:Module docstring: app.main",
+      "source": {
+        "id": "app.main",
+        "type": "MODULE"
+      },
+      "target": {
+        "id": "Module docstring: app.main",
+        "type": "DOCUMENTATION"
+      },
+      "relationship_type": "DOCUMENTED_BY"
+    },
+    {
+      "relationship_id": "rel:app.models:DOCUMENTED_BY:Module docstring: app.models",
+      "source": {
+        "id": "app.models",
+        "type": "MODULE"
+      },
+      "target": {
+        "id": "Module docstring: app.models",
+        "type": "DOCUMENTATION"
+      },
+      "relationship_type": "DOCUMENTED_BY"
+    },
+    {
+      "relationship_id": "rel:app.services:DOCUMENTED_BY:Module docstring: app.services",
+      "source": {
+        "id": "app.services",
+        "type": "MODULE"
+      },
+      "target": {
+        "id": "Module docstring: app.services",
+        "type": "DOCUMENTATION"
+      },
+      "relationship_type": "DOCUMENTED_BY"
+    },
+    {
+      "relationship_id": "rel:app.tests:DOCUMENTED_BY:Module docstring: app.tests",
+      "source": {
+        "id": "app.tests",
+        "type": "MODULE"
+      },
+      "target": {
+        "id": "Module docstring: app.tests",
+        "type": "DOCUMENTATION"
+      },
+      "relationship_type": "DOCUMENTED_BY"
+    },
+    {
+      "relationship_id": "rel:app.tests.test_services:DOCUMENTED_BY:Module docstring: app.tests.test_services",
+      "source": {
+        "id": "app.tests.test_services",
+        "type": "MODULE"
+      },
+      "target": {
+        "id": "Module docstring: app.tests.test_services",
+        "type": "DOCUMENTATION"
+      },
+      "relationship_type": "DOCUMENTED_BY"
+    },
+    {
+      "relationship_id": "rel:app.config.AppSettings:DOCUMENTED_BY:Class docstring: app.config.AppSettings",
+      "source": {
+        "id": "app.config.AppSettings",
+        "type": "CLASS"
+      },
+      "target": {
+        "id": "Class docstring: app.config.AppSettings",
+        "type": "DOCUMENTATION"
+      },
+      "relationship_type": "DOCUMENTED_BY"
+    },
+    {
+      "relationship_id": "rel:app.models.Base:DOCUMENTED_BY:Class docstring: app.models.Base",
+      "source": {
+        "id": "app.models.Base",
+        "type": "CLASS"
+      },
+      "target": {
+        "id": "Class docstring: app.models.Base",
+        "type": "DOCUMENTATION"
+      },
+      "relationship_type": "DOCUMENTED_BY"
+    },
+    {
+      "relationship_id": "rel:app.models.ItemOrm:DOCUMENTED_BY:Class docstring: app.models.ItemOrm",
+      "source": {
+        "id": "app.models.ItemOrm",
+        "type": "CLASS"
+      },
+      "target": {
+        "id": "Class docstring: app.models.ItemOrm",
+        "type": "DOCUMENTATION"
+      },
+      "relationship_type": "DOCUMENTED_BY"
+    },
+    {
+      "relationship_id": "rel:app.services.BaseService:DOCUMENTED_BY:Class docstring: app.services.BaseService",
+      "source": {
+        "id": "app.services.BaseService",
+        "type": "CLASS"
+      },
+      "target": {
+        "id": "Class docstring: app.services.BaseService",
+        "type": "DOCUMENTATION"
+      },
+      "relationship_type": "DOCUMENTED_BY"
+    },
+    {
+      "relationship_id": "rel:app.services.ItemService:DOCUMENTED_BY:Class docstring: app.services.ItemService",
+      "source": {
+        "id": "app.services.ItemService",
+        "type": "CLASS"
+      },
+      "target": {
+        "id": "Class docstring: app.services.ItemService",
+        "type": "DOCUMENTATION"
+      },
+      "relationship_type": "DOCUMENTED_BY"
+    },
+    {
+      "relationship_id": "rel:app.main.list_items:DOCUMENTED_BY:Function docstring: app.main.list_items",
+      "source": {
+        "id": "app.main.list_items",
+        "type": "FUNCTION"
+      },
+      "target": {
+        "id": "Function docstring: app.main.list_items",
+        "type": "DOCUMENTATION"
+      },
+      "relationship_type": "DOCUMENTED_BY"
+    },
+    {
+      "relationship_id": "rel:app.main.create_item:DOCUMENTED_BY:Function docstring: app.main.create_item",
+      "source": {
+        "id": "app.main.create_item",
+        "type": "FUNCTION"
+      },
+      "target": {
+        "id": "Function docstring: app.main.create_item",
+        "type": "DOCUMENTATION"
+      },
+      "relationship_type": "DOCUMENTED_BY"
+    },
+    {
+      "relationship_id": "rel:app.services.BaseService.ping:DOCUMENTED_BY:Function docstring: app.services.BaseService.ping",
+      "source": {
+        "id": "app.services.BaseService.ping",
+        "type": "FUNCTION"
+      },
+      "target": {
+        "id": "Function docstring: app.services.BaseService.ping",
+        "type": "DOCUMENTATION"
+      },
+      "relationship_type": "DOCUMENTED_BY"
+    },
+    {
+      "relationship_id": "rel:app.services.ItemService.create_item:DOCUMENTED_BY:Function docstring: app.services.ItemService.create_item",
+      "source": {
+        "id": "app.services.ItemService.create_item",
+        "type": "FUNCTION"
+      },
+      "target": {
+        "id": "Function docstring: app.services.ItemService.create_item",
+        "type": "DOCUMENTATION"
+      },
+      "relationship_type": "DOCUMENTED_BY"
+    },
+    {
+      "relationship_id": "rel:app.services.ItemService.get_items:DOCUMENTED_BY:Function docstring: app.services.ItemService.get_items",
+      "source": {
+        "id": "app.services.ItemService.get_items",
+        "type": "FUNCTION"
+      },
+      "target": {
+        "id": "Function docstring: app.services.ItemService.get_items",
+        "type": "DOCUMENTATION"
+      },
+      "relationship_type": "DOCUMENTED_BY"
+    },
+    {
+      "relationship_id": "rel:app.tests.test_services.test_service_initialization:DOCUMENTED_BY:Function docstring: app.tests.test_services.test_service_initialization",
+      "source": {
+        "id": "app.tests.test_services.test_service_initialization",
+        "type": "FUNCTION"
+      },
+      "target": {
+        "id": "Function docstring: app.tests.test_services.test_service_initialization",
+        "type": "DOCUMENTATION"
+      },
+      "relationship_type": "DOCUMENTED_BY"
+    },
+    {
+      "relationship_id": "rel:app.tests.test_services.test_create_item:DOCUMENTED_BY:Function docstring: app.tests.test_services.test_create_item",
+      "source": {
+        "id": "app.tests.test_services.test_create_item",
+        "type": "FUNCTION"
+      },
+      "target": {
+        "id": "Function docstring: app.tests.test_services.test_create_item",
+        "type": "DOCUMENTATION"
+      },
+      "relationship_type": "DOCUMENTED_BY"
+    },
+    {
+      "relationship_id": "rel:app:DEPENDS_ON:fastapi",
+      "source": {
+        "id": "app",
+        "type": "MODULE"
+      },
+      "target": {
+        "id": "fastapi",
+        "type": "DEPENDENCY"
+      },
+      "relationship_type": "DEPENDS_ON"
+    },
+    {
+      "relationship_id": "rel:app:DEPENDS_ON:pydantic",
+      "source": {
+        "id": "app",
+        "type": "MODULE"
+      },
+      "target": {
+        "id": "pydantic",
+        "type": "DEPENDENCY"
+      },
+      "relationship_type": "DEPENDS_ON"
+    },
+    {
+      "relationship_id": "rel:app:DEPENDS_ON:sqlalchemy",
+      "source": {
+        "id": "app",
+        "type": "MODULE"
+      },
+      "target": {
+        "id": "sqlalchemy",
+        "type": "DEPENDENCY"
+      },
+      "relationship_type": "DEPENDS_ON"
+    },
+    {
+      "relationship_id": "rel:app:DEPENDS_ON:pytest",
+      "source": {
+        "id": "app",
+        "type": "MODULE"
+      },
+      "target": {
+        "id": "pytest",
+        "type": "DEPENDENCY"
+      },
+      "relationship_type": "DEPENDS_ON"
+    }
+  ],
+  "dependency_graph": {
+    "nodes": [
+      {
+        "id": "mod:app",
+        "type": "module",
+        "name": "app",
+        "file_id": "file:app/__init__.py"
+      },
+      {
+        "id": "mod:app.config",
+        "type": "module",
+        "name": "config",
+        "file_id": "file:app/config.py"
+      },
+      {
+        "id": "mod:app.main",
+        "type": "module",
+        "name": "main",
+        "file_id": "file:app/main.py"
+      },
+      {
+        "id": "mod:app.models",
+        "type": "module",
+        "name": "models",
+        "file_id": "file:app/models.py"
+      },
+      {
+        "id": "mod:app.services",
+        "type": "module",
+        "name": "services",
+        "file_id": "file:app/services.py"
+      },
+      {
+        "id": "mod:app.tests",
+        "type": "module",
+        "name": "tests",
+        "file_id": "file:app/tests/__init__.py"
+      },
+      {
+        "id": "mod:app.tests.test_services",
+        "type": "module",
+        "name": "test_services",
+        "file_id": "file:app/tests/test_services.py"
+      },
+      {
+        "id": "class:app.config.AppSettings",
+        "type": "class",
+        "name": "AppSettings",
+        "file_id": "file:app/config.py"
+      },
+      {
+        "id": "class:app.models.Base",
+        "type": "class",
+        "name": "Base",
+        "file_id": "file:app/models.py"
+      },
+      {
+        "id": "class:app.models.ItemOrm",
+        "type": "class",
+        "name": "ItemOrm",
+        "file_id": "file:app/models.py"
+      },
+      {
+        "id": "class:app.services.BaseService",
+        "type": "class",
+        "name": "BaseService",
+        "file_id": "file:app/services.py"
+      },
+      {
+        "id": "class:app.services.ItemService",
+        "type": "class",
+        "name": "ItemService",
+        "file_id": "file:app/services.py"
+      },
+      {
+        "id": "fn:app.main.list_items",
+        "type": "function",
+        "name": "list_items",
+        "file_id": "file:app/main.py"
+      },
+      {
+        "id": "fn:app.main.create_item",
+        "type": "function",
+        "name": "create_item",
+        "file_id": "file:app/main.py"
+      },
+      {
+        "id": "fn:app.services.BaseService.__init__",
+        "type": "method",
+        "name": "__init__",
+        "file_id": "file:app/services.py"
+      },
+      {
+        "id": "fn:app.services.BaseService.ping",
+        "type": "method",
+        "name": "ping",
+        "file_id": "file:app/services.py"
+      },
+      {
+        "id": "fn:app.services.ItemService.__init__",
+        "type": "method",
+        "name": "__init__",
+        "file_id": "file:app/services.py"
+      },
+      {
+        "id": "fn:app.services.ItemService.create_item",
+        "type": "method",
+        "name": "create_item",
+        "file_id": "file:app/services.py"
+      },
+      {
+        "id": "fn:app.services.ItemService.get_items",
+        "type": "method",
+        "name": "get_items",
+        "file_id": "file:app/services.py"
+      },
+      {
+        "id": "fn:app.tests.test_services.test_service_initialization",
+        "type": "function",
+        "name": "test_service_initialization",
+        "file_id": "file:app/tests/test_services.py"
+      },
+      {
+        "id": "fn:app.tests.test_services.test_create_item",
+        "type": "function",
+        "name": "test_create_item",
+        "file_id": "file:app/tests/test_services.py"
+      },
+      {
+        "id": "endpoint:GET:/items",
+        "type": "endpoint",
+        "name": "GET /items",
+        "file_id": "file:app/main.py"
+      },
+      {
+        "id": "endpoint:POST:/items",
+        "type": "endpoint",
+        "name": "POST /items",
+        "file_id": "file:app/main.py"
+      },
+      {
+        "id": "db:AppSettings",
+        "type": "database_model",
+        "name": "AppSettings",
+        "file_id": "file:app/config.py"
+      },
+      {
+        "id": "db:Base",
+        "type": "database_model",
+        "name": "Base",
+        "file_id": "file:app/models.py"
+      },
+      {
+        "id": "db:items",
+        "type": "database_model",
+        "name": "items",
+        "file_id": "file:app/models.py"
+      },
+      {
+        "id": "db:ItemService",
+        "type": "database_model",
+        "name": "ItemService",
+        "file_id": "file:app/services.py"
+      },
+      {
+        "id": "dep:fastapi",
+        "type": "external_dependency",
+        "name": "fastapi",
+        "file_id": "file:pyproject.toml"
+      },
+      {
+        "id": "dep:pydantic",
+        "type": "external_dependency",
+        "name": "pydantic",
+        "file_id": "file:pyproject.toml"
+      },
+      {
+        "id": "dep:sqlalchemy",
+        "type": "external_dependency",
+        "name": "sqlalchemy",
+        "file_id": "file:pyproject.toml"
+      },
+      {
+        "id": "dep:pytest",
+        "type": "external_dependency",
+        "name": "pytest",
+        "file_id": "file:pyproject.toml"
+      }
+    ],
+    "edges": [
+      {
+        "source_id": "app.config",
+        "target_id": "os",
+        "relationship_type": "IMPORTS"
+      },
+      {
+        "source_id": "app.config",
+        "target_id": "pydantic.BaseModel",
+        "relationship_type": "IMPORTS"
+      },
+      {
+        "source_id": "app.config.AppSettings",
+        "target_id": "pydantic.BaseModel",
+        "relationship_type": "EXTENDS"
+      },
+      {
+        "source_id": "app.main",
+        "target_id": "fastapi.FastAPI",
+        "relationship_type": "IMPORTS"
+      },
+      {
+        "source_id": "app.main",
+        "target_id": "fastapi.HTTPException",
+        "relationship_type": "IMPORTS"
+      },
+      {
+        "source_id": "app.main",
+        "target_id": "app.services.ItemService",
+        "relationship_type": "IMPORTS"
+      },
+      {
+        "source_id": "app.main.create_item",
+        "target_id": "fastapi.HTTPException",
+        "relationship_type": "CALLS"
+      },
+      {
+        "source_id": "app.models",
+        "target_id": "sqlalchemy.Column",
+        "relationship_type": "IMPORTS"
+      },
+      {
+        "source_id": "app.models",
+        "target_id": "sqlalchemy.Integer",
+        "relationship_type": "IMPORTS"
+      },
+      {
+        "source_id": "app.models",
+        "target_id": "sqlalchemy.String",
+        "relationship_type": "IMPORTS"
+      },
+      {
+        "source_id": "app.models",
+        "target_id": "sqlalchemy.orm.DeclarativeBase",
+        "relationship_type": "IMPORTS"
+      },
+      {
+        "source_id": "app.models.Base",
+        "target_id": "sqlalchemy.orm.DeclarativeBase",
+        "relationship_type": "EXTENDS"
+      },
+      {
+        "source_id": "app.models.ItemOrm",
+        "target_id": "Base",
+        "relationship_type": "EXTENDS"
+      },
+      {
+        "source_id": "app.services",
+        "target_id": "app.models.ItemOrm",
+        "relationship_type": "IMPORTS"
+      },
+      {
+        "source_id": "app.services.ItemService",
+        "target_id": "BaseService",
+        "relationship_type": "EXTENDS"
+      },
+      {
+        "source_id": "app.services.ItemService.create_item",
+        "target_id": "app.models.ItemOrm",
+        "relationship_type": "CALLS"
+      },
+      {
+        "source_id": "app.tests.test_services",
+        "target_id": "app.services.ItemService",
+        "relationship_type": "IMPORTS"
+      },
+      {
+        "source_id": "app.tests.test_services.test_service_initialization",
+        "target_id": "app.services.ItemService",
+        "relationship_type": "CALLS"
+      },
+      {
+        "source_id": "app.tests.test_services.test_create_item",
+        "target_id": "app.services.ItemService",
+        "relationship_type": "CALLS"
+      },
+      {
+        "source_id": "app.main.list_items",
+        "target_id": "GET /items",
+        "relationship_type": "EXPOSES"
+      },
+      {
+        "source_id": "app.main.create_item",
+        "target_id": "POST /items",
+        "relationship_type": "EXPOSES"
+      },
+      {
+        "source_id": "app.config.AppSettings",
+        "target_id": "app_name",
+        "relationship_type": "CONFIGURED_BY"
+      },
+      {
+        "source_id": "app.config.AppSettings",
+        "target_id": "database_url",
+        "relationship_type": "CONFIGURED_BY"
+      },
+      {
+        "source_id": "app.config.AppSettings",
+        "target_id": "debug_mode",
+        "relationship_type": "CONFIGURED_BY"
+      },
+      {
+        "source_id": "app/config.py",
+        "target_id": "DATABASE_URL",
+        "relationship_type": "READS"
+      },
+      {
+        "source_id": "app.config.AppSettings",
+        "target_id": "AppSettings",
+        "relationship_type": "WRITES"
+      },
+      {
+        "source_id": "app.models.Base",
+        "target_id": "Base",
+        "relationship_type": "WRITES"
+      },
+      {
+        "source_id": "app.models.ItemOrm",
+        "target_id": "items",
+        "relationship_type": "WRITES"
+      },
+      {
+        "source_id": "app.services.ItemService",
+        "target_id": "ItemService",
+        "relationship_type": "WRITES"
+      },
+      {
+        "source_id": "app.services.ItemService",
+        "target_id": "app.tests.test_services.test_service_initialization",
+        "relationship_type": "TESTED_BY"
+      },
+      {
+        "source_id": "app.services.ItemService",
+        "target_id": "app.tests.test_services.test_create_item",
+        "relationship_type": "TESTED_BY"
+      },
+      {
+        "source_id": "app",
+        "target_id": "Module docstring: app",
+        "relationship_type": "DOCUMENTED_BY"
+      },
+      {
+        "source_id": "app.config",
+        "target_id": "Module docstring: app.config",
+        "relationship_type": "DOCUMENTED_BY"
+      },
+      {
+        "source_id": "app.main",
+        "target_id": "Module docstring: app.main",
+        "relationship_type": "DOCUMENTED_BY"
+      },
+      {
+        "source_id": "app.models",
+        "target_id": "Module docstring: app.models",
+        "relationship_type": "DOCUMENTED_BY"
+      },
+      {
+        "source_id": "app.services",
+        "target_id": "Module docstring: app.services",
+        "relationship_type": "DOCUMENTED_BY"
+      },
+      {
+        "source_id": "app.tests",
+        "target_id": "Module docstring: app.tests",
+        "relationship_type": "DOCUMENTED_BY"
+      },
+      {
+        "source_id": "app.tests.test_services",
+        "target_id": "Module docstring: app.tests.test_services",
+        "relationship_type": "DOCUMENTED_BY"
+      },
+      {
+        "source_id": "app.config.AppSettings",
+        "target_id": "Class docstring: app.config.AppSettings",
+        "relationship_type": "DOCUMENTED_BY"
+      },
+      {
+        "source_id": "app.models.Base",
+        "target_id": "Class docstring: app.models.Base",
+        "relationship_type": "DOCUMENTED_BY"
+      },
+      {
+        "source_id": "app.models.ItemOrm",
+        "target_id": "Class docstring: app.models.ItemOrm",
+        "relationship_type": "DOCUMENTED_BY"
+      },
+      {
+        "source_id": "app.services.BaseService",
+        "target_id": "Class docstring: app.services.BaseService",
+        "relationship_type": "DOCUMENTED_BY"
+      },
+      {
+        "source_id": "app.services.ItemService",
+        "target_id": "Class docstring: app.services.ItemService",
+        "relationship_type": "DOCUMENTED_BY"
+      },
+      {
+        "source_id": "app.main.list_items",
+        "target_id": "Function docstring: app.main.list_items",
+        "relationship_type": "DOCUMENTED_BY"
+      },
+      {
+        "source_id": "app.main.create_item",
+        "target_id": "Function docstring: app.main.create_item",
+        "relationship_type": "DOCUMENTED_BY"
+      },
+      {
+        "source_id": "app.services.BaseService.ping",
+        "target_id": "Function docstring: app.services.BaseService.ping",
+        "relationship_type": "DOCUMENTED_BY"
+      },
+      {
+        "source_id": "app.services.ItemService.create_item",
+        "target_id": "Function docstring: app.services.ItemService.create_item",
+        "relationship_type": "DOCUMENTED_BY"
+      },
+      {
+        "source_id": "app.services.ItemService.get_items",
+        "target_id": "Function docstring: app.services.ItemService.get_items",
+        "relationship_type": "DOCUMENTED_BY"
+      },
+      {
+        "source_id": "app.tests.test_services.test_service_initialization",
+        "target_id": "Function docstring: app.tests.test_services.test_service_initialization",
+        "relationship_type": "DOCUMENTED_BY"
+      },
+      {
+        "source_id": "app.tests.test_services.test_create_item",
+        "target_id": "Function docstring: app.tests.test_services.test_create_item",
+        "relationship_type": "DOCUMENTED_BY"
+      },
+      {
+        "source_id": "app",
+        "target_id": "fastapi",
+        "relationship_type": "DEPENDS_ON"
+      },
+      {
+        "source_id": "app",
+        "target_id": "pydantic",
+        "relationship_type": "DEPENDS_ON"
+      },
+      {
+        "source_id": "app",
+        "target_id": "sqlalchemy",
+        "relationship_type": "DEPENDS_ON"
+      },
+      {
+        "source_id": "app",
+        "target_id": "pytest",
+        "relationship_type": "DEPENDS_ON"
+      }
+    ]
+  },
+  "changes": {
+    "base_version": {
+      "commit_sha": "1234567890123456789012345678901234567890",
+      "branch": "main"
+    },
+    "target_version": {
+      "commit_sha": "1234567890123456789012345678901234567890",
+      "branch": "main"
+    },
+    "files": {
+      "added": [],
+      "modified": [],
+      "deleted": [],
+      "renamed": []
+    },
+    "packages": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    },
+    "modules": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    },
+    "classes": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    },
+    "functions": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    },
+    "methods": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    },
+    "endpoints": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    },
+    "database_models": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    },
+    "test_functions": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    },
+    "dependencies": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    },
+    "relationships": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "architecture": {
+    "components": [],
+    "layers": [],
+    "services": [
+      {
+        "name": "BaseService",
+        "type": "service",
+        "location": "app/services.py"
+      },
+      {
+        "name": "ItemService",
+        "type": "service",
+        "location": "app/services.py"
+      }
+    ],
+    "entry_points": [
+      {
+        "id": "endpoint:GET:/items",
+        "method": "GET",
+        "path": "/items",
+        "handler": "app.main.list_items"
+      },
+      {
+        "id": "endpoint:POST:/items",
+        "method": "POST",
+        "path": "/items",
+        "handler": "app.main.create_item"
+      }
+    ],
+    "circular_dependencies": []
+  },
+  "configuration": {
+    "frameworks": [
+      "FastAPI",
+      "pytest"
+    ],
+    "package_managers": [
+      "poetry"
+    ],
+    "configuration_files": [
+      "app/config.py",
+      "pyproject.toml"
+    ]
+  },
+  "diagnostics": []
+}
