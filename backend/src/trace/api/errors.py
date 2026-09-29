@@ -1,8 +1,11 @@
 """Standardized error responses and exception handlers for TRACE API."""
 
 from trace.domain.exceptions import (
+    AnalysisExecutionError,
+    AnalysisRunNotFoundError,
     DatabasePersistenceError,
     DuplicateRepositoryError,
+    InvalidAnalysisStateError,
     InvalidRepositoryLocationError,
     ProjectAlreadyExistsError,
     ProjectArchivedError,
@@ -64,6 +67,24 @@ def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(RepositoryNotFoundError)
     async def handle_repository_not_found(_: Request, exc: RepositoryNotFoundError) -> JSONResponse:
         return create_error_response(404, "REPOSITORY_NOT_FOUND", exc.message, exc.details)
+
+    @app.exception_handler(AnalysisRunNotFoundError)
+    async def handle_analysis_run_not_found(
+        _: Request, exc: AnalysisRunNotFoundError
+    ) -> JSONResponse:
+        return create_error_response(404, "ANALYSIS_RUN_NOT_FOUND", exc.message, exc.details)
+
+    @app.exception_handler(InvalidAnalysisStateError)
+    async def handle_invalid_analysis_state(
+        _: Request, exc: InvalidAnalysisStateError
+    ) -> JSONResponse:
+        return create_error_response(409, "INVALID_ANALYSIS_STATE", exc.message, exc.details)
+
+    @app.exception_handler(AnalysisExecutionError)
+    async def handle_analysis_execution_error(
+        _: Request, exc: AnalysisExecutionError
+    ) -> JSONResponse:
+        return create_error_response(500, "ANALYSIS_EXECUTION_ERROR", exc.message, exc.details)
 
     @app.exception_handler(ProjectAlreadyExistsError)
     async def handle_project_already_exists(

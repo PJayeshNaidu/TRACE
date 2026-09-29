@@ -1,7 +1,8 @@
 """Database models package."""
 
+from trace.infrastructure.database.models.analysis_run import AnalysisRunOrm
 from trace.infrastructure.database.models.base import Base
 from trace.infrastructure.database.models.project import ProjectOrm
 from trace.infrastructure.database.models.repository import RepositoryOrm
 
-__all__ = ["Base", "ProjectOrm", "RepositoryOrm"]
+__all__ = ["AnalysisRunOrm", "Base", "ProjectOrm", "RepositoryOrm"]

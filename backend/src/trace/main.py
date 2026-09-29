@@ -2,6 +2,7 @@
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from trace.analysis.analyzer import PythonCodeAnalyzer
 from trace.api.errors import register_exception_handlers
 from trace.api.router import api_router
 from trace.core.config import ApplicationConfig
@@ -13,6 +14,7 @@ from trace.infrastructure.graph.gateway import (
     UnconfiguredGraphGateway,
 )
 from trace.infrastructure.llm.adapters.openrouter import OpenRouterAdapter
+from trace.infrastructure.storage.artifact_store import FileArtifactStore
 
 import httpx
 import structlog
@@ -67,6 +69,10 @@ def create_app(config: ApplicationConfig | None = None) -> FastAPI:
 
         # Git Provider Adapter
         app.state.git = SubprocessGitProvider(config=cfg)
+
+        # Artifact Store & Code Analyzer
+        app.state.artifact_store = FileArtifactStore(cfg.artifacts_dir)
+        app.state.code_analyzer = PythonCodeAnalyzer()
 
         try:
             yield

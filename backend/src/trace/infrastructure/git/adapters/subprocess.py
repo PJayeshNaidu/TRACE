@@ -224,3 +224,22 @@ class SubprocessGitProvider:
             if len(parts) >= 2:
                 refs.append(parts[1])
         return refs
+
+    async def resolve_revision(
+        self,
+        location: str | Path,
+        ref: str = "HEAD",
+    ) -> str | None:
+        """Resolve a Git reference (e.g. branch, tag, HEAD) to a 40-character commit SHA."""
+        path = Path(location)
+        if not path.exists():
+            return None
+        rc, stdout, _ = await self._run_command(
+            ["-C", str(path), "rev-parse", ref],
+            timeout_seconds=self.timeout_seconds,
+        )
+        if rc == 0 and stdout.strip():
+            sha = stdout.strip()
+            if len(sha) == 40 and all(c in "0123456789abcdefABCDEF" for c in sha):
+                return sha.lower()
+        return None
