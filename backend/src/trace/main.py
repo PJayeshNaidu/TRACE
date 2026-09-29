@@ -15,6 +15,8 @@ from trace.infrastructure.graph.gateway import (
 )
 from trace.infrastructure.llm.adapters.openrouter import OpenRouterAdapter
 from trace.infrastructure.storage.artifact_store import FileArtifactStore
+from trace.services.analysis import AnalysisService
+from trace.services.graph import GraphService
 
 import httpx
 import structlog
@@ -73,6 +75,31 @@ def create_app(config: ApplicationConfig | None = None) -> FastAPI:
         # Artifact Store & Code Analyzer
         app.state.artifact_store = FileArtifactStore(cfg.artifacts_dir)
         app.state.code_analyzer = PythonCodeAnalyzer()
+
+        # Graph Service (F03) — wires graph_gateway + analysis_service together
+        # AnalysisService must be constructed first as a local var so GraphService
+        # can reference it; then AnalysisService is re-constructed with graph_service.
+        _base_analysis_svc = AnalysisService(
+            db_gateway=db_gateway,
+            analyzer=app.state.code_analyzer,
+            artifact_store=app.state.artifact_store,
+            git_provider=app.state.git,
+        )
+        graph_service = GraphService(
+            db_gateway=db_gateway,
+            graph_gateway=app.state.graph,
+            analysis_service=_base_analysis_svc,
+        )
+        app.state.graph_service = graph_service
+
+        # Re-create AnalysisService with graph_service injected for auto-trigger
+        app.state.analysis_service = AnalysisService(
+            db_gateway=db_gateway,
+            analyzer=app.state.code_analyzer,
+            artifact_store=app.state.artifact_store,
+            git_provider=app.state.git,
+            graph_service=graph_service,
+        )
 
         try:
             yield

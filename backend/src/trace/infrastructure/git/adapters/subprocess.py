@@ -42,13 +42,16 @@ class SubprocessGitProvider:
             "GIT_TERMINAL_PROMPT": "0",
             "GIT_ASKPASS": "echo",
         }
-        proc = await asyncio.create_subprocess_exec(
-            self.binary_path,
-            *args,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            env=env,
-        )
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                self.binary_path,
+                *args,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=env,
+            )
+        except FileNotFoundError:
+            return (-1, "", f"Git binary '{self.binary_path}' not found in system PATH.")
         try:
             stdout_b, stderr_b = await asyncio.wait_for(
                 proc.communicate(),
@@ -243,3 +246,48 @@ class SubprocessGitProvider:
             if len(sha) == 40 and all(c in "0123456789abcdefABCDEF" for c in sha):
                 return sha.lower()
         return None
+
+    async def clone_or_checkout(
+        self,
+        url: str,
+        destination: Path,
+        target_ref: str | None = None,
+        timeout_seconds: float = 180.0,
+    ) -> Path:
+        """Clone a remote Git repository or fetch and checkout the target ref."""
+        dest = Path(destination).resolve()
+        if (dest / ".git").exists():
+            logger.info("Remote repository already cloned, fetching latest changes", path=str(dest))
+            await self._run_command(
+                ["-C", str(dest), "fetch", "--all", "--prune"],
+                timeout_seconds=timeout_seconds,
+            )
+            if target_ref and target_ref != "HEAD":
+                rc, _, _ = await self._run_command(
+                    ["-C", str(dest), "checkout", target_ref],
+                    timeout_seconds=timeout_seconds,
+                )
+                if rc != 0:
+                    await self._run_command(
+                        ["-C", str(dest), "checkout", f"origin/{target_ref}"],
+                        timeout_seconds=timeout_seconds,
+                    )
+        else:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            logger.info("Cloning remote Git repository", url=url, destination=str(dest))
+            args = ["clone", url, str(dest)]
+            if target_ref and target_ref != "HEAD":
+                args = ["clone", "-b", target_ref, url, str(dest)]
+            rc, stdout, stderr = await self._run_command(args, timeout_seconds=timeout_seconds)
+            if rc != 0:
+                # If clone -b failed (e.g. target_ref is a commit SHA), fallback to standard clone + checkout
+                fallback_args = ["clone", url, str(dest)]
+                rc, stdout, stderr = await self._run_command(fallback_args, timeout_seconds=timeout_seconds)
+                if rc != 0:
+                    raise RuntimeError(f"Git clone failed for {url}: {stderr.strip() or stdout.strip()}")
+                if target_ref and target_ref != "HEAD":
+                    await self._run_command(
+                        ["-C", str(dest), "checkout", target_ref],
+                        timeout_seconds=timeout_seconds,
+                    )
+        return dest

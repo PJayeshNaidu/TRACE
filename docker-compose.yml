@@ -43,6 +43,8 @@ services:
     restart: unless-stopped
     ports:
       - "8000:8000"
+    volumes:
+      - .:/workspace:ro
     env_file:
       - .env
     environment:
@@ -60,6 +62,20 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: trace-frontend
+    restart: unless-stopped
+    ports:
+      - "8501:8501"
+    environment:
+      - TRACE_API_URL=http://backend:8000/api/v1
+    depends_on:
+      backend:
+        condition: service_healthy
 
 volumes:
   postgres_data:

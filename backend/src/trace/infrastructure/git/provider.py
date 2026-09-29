@@ -36,3 +36,13 @@ class GitProvider(Protocol):
     async def resolve_revision(self, location: str | Path, ref: str = "HEAD") -> str | None:
         """Resolve a Git reference (e.g. branch, tag, HEAD) to a 40-character commit SHA."""
         ...
+
+    async def clone_or_checkout(
+        self,
+        url: str,
+        destination: Path,
+        target_ref: str | None = None,
+        timeout_seconds: float = 180.0,
+    ) -> Path:
+        """Clone a remote Git repository or fetch and checkout the target ref."""
+        ...

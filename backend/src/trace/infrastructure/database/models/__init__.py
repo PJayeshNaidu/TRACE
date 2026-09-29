@@ -2,7 +2,8 @@
 
 from trace.infrastructure.database.models.analysis_run import AnalysisRunOrm
 from trace.infrastructure.database.models.base import Base
+from trace.infrastructure.database.models.graph_build_run import GraphBuildRunOrm
 from trace.infrastructure.database.models.project import ProjectOrm
 from trace.infrastructure.database.models.repository import RepositoryOrm
 
-__all__ = ["AnalysisRunOrm", "Base", "ProjectOrm", "RepositoryOrm"]
+__all__ = ["AnalysisRunOrm", "Base", "GraphBuildRunOrm", "ProjectOrm", "RepositoryOrm"]

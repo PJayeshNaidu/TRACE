@@ -22,11 +22,14 @@ from trace.infrastructure.database.gateway import DatabaseGateway
 from trace.infrastructure.database.models import AnalysisRunOrm, ProjectOrm, RepositoryOrm
 from trace.infrastructure.git.provider import GitProvider
 from trace.infrastructure.storage.artifact_store import FileArtifactStore
-from typing import Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 import structlog
 from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
+
+if TYPE_CHECKING:
+    from trace.services.graph import GraphService
 
 logger = structlog.get_logger(__name__)
 
@@ -54,11 +57,13 @@ class AnalysisService:
         analyzer: CodeAnalyzer,
         artifact_store: FileArtifactStore,
         git_provider: GitProvider,
+        graph_service: "GraphService | None" = None,
     ) -> None:
         self._db_gateway = db_gateway
         self._analyzer = analyzer
         self._artifact_store = artifact_store
         self._git_provider = git_provider
+        self._graph_service = graph_service
 
     async def trigger_analysis(
         self,
@@ -190,8 +195,18 @@ class AnalysisService:
                 return
 
         try:
-            # 2. Resolve working directory and commit SHA
-            working_tree_path = Path(repo_location).resolve()
+            # 2. Resolve working directory and commit SHA (auto-clone for REMOTE repos)
+            is_remote = repo_orm.type == "REMOTE" or repo_location.startswith(("http://", "https://", "git@", "ssh://"))
+            if is_remote:
+                storage_repos_dir = Path("storage/repos") / str(repository_id)
+                working_tree_path = await self._git_provider.clone_or_checkout(
+                    url=repo_location,
+                    destination=storage_repos_dir,
+                    target_ref=target_ref,
+                )
+            else:
+                working_tree_path = Path(repo_location).resolve()
+
             commit_hash = await self._git_provider.resolve_revision(
                 working_tree_path, target_ref or "HEAD"
             )
@@ -257,6 +272,21 @@ class AnalysisService:
                     duration_ms=round(duration_ms, 2),
                     total_files=run_orm.total_files,
                 )
+
+            # Auto-trigger F03 dependency graph build after successful analysis
+            if self._graph_service is not None:
+                try:
+                    loop = asyncio.get_running_loop()
+                    loop.create_task(
+                        self._graph_service.build_dependency_graph(analysis_run_id),
+                        name=f"graph_build:{analysis_run_id}",
+                    )
+                    logger.info(
+                        "Dependency graph build dispatched",
+                        run_id=str(analysis_run_id),
+                    )
+                except RuntimeError:
+                    pass  # No running event loop (e.g. during sync tests)
 
         except Exception as exc:
             logger.exception(

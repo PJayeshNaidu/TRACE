@@ -55,18 +55,28 @@ def get_code_analyzer(request: Request) -> CodeAnalyzer:
 
 
 def get_analysis_service(
+    request: Request,
     db: Annotated[DatabaseGateway, Depends(get_db_gateway)],
     analyzer: Annotated[CodeAnalyzer, Depends(get_code_analyzer)],
     artifact_store: Annotated[FileArtifactStore, Depends(get_artifact_store)],
     git: Annotated[GitProvider, Depends(get_git_provider)],
 ) -> AnalysisService:
-    """Dependency provider for AnalysisService."""
+    """Dependency provider for AnalysisService.
+
+    Returns the pre-wired instance from app.state if available (which carries
+    the GraphService injection for F03 auto-trigger). Falls back to constructing
+    a fresh instance without GraphService for test environments.
+    """
+    state_svc = getattr(request.app.state, "analysis_service", None)
+    if state_svc is not None:
+        return state_svc  # type: ignore[return-value]
     return AnalysisService(
         db_gateway=db,
         analyzer=analyzer,
         artifact_store=artifact_store,
         git_provider=git,
     )
+
 
 
 class BackgroundTasksAnalysisExecutor:

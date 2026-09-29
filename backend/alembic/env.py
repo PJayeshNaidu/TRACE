@@ -1,9 +1,17 @@
-"""Alembic environment configuration supporting async SQLAlchemy migrations."""
+import sys
+from pathlib import Path
+
+# Ensure src/trace takes precedence over stdlib trace
+_src_dir = str((Path(__file__).parent.parent / "src").resolve())
+if _src_dir not in sys.path:
+    sys.path.insert(0, _src_dir)
+sys.modules.pop("trace", None)
 
 import asyncio
 import os
 from logging.config import fileConfig
-from trace.infrastructure.database.models import Base
+
+from trace.infrastructure.database.models import Base  # noqa: E402
 
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
