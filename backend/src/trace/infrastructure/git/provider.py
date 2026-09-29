@@ -32,3 +32,7 @@ class GitProvider(Protocol):
     async def list_remote_references(self, url: str, timeout_seconds: float = 10.0) -> list[str]:
         """Query available remote branch and tag reference names without cloning files."""
         ...
+
+    async def resolve_revision(self, location: str | Path, ref: str = "HEAD") -> str | None:
+        """Resolve a Git reference (e.g. branch, tag, HEAD) to a 40-character commit SHA."""
+        ...

@@ -152,3 +152,40 @@ class DatabasePersistenceError(TraceDomainError):
             details["cause_type"] = type(cause).__name__
             details["cause_message"] = str(cause)
         super().__init__(message=message, details=details)
+
+
+class AnalysisRunNotFoundError(TraceDomainError):
+    """Raised when a requested analysis run does not exist."""
+
+    def __init__(self, run_id: uuid.UUID | str) -> None:
+        self.run_id = str(run_id)
+        super().__init__(
+            message=f"Analysis run with ID '{self.run_id}' was not found.",
+            details={"run_id": self.run_id},
+        )
+
+
+class AnalysisExecutionError(TraceDomainError):
+    """Raised when static analysis execution fails fatally."""
+
+    def __init__(self, message: str, details: dict[str, Any] | None = None) -> None:
+        super().__init__(message=message, details=details)
+
+
+class InvalidAnalysisStateError(TraceDomainError):
+    """Raised when an operation is invalid for the current analysis run state."""
+
+    def __init__(self, run_id: uuid.UUID | str, current_status: str, operation: str) -> None:
+        self.run_id = str(run_id)
+        self.current_status = current_status
+        self.operation = operation
+        super().__init__(
+            message=(
+                f"Cannot {operation} analysis run '{self.run_id}' in status '{current_status}'."
+            ),
+            details={
+                "run_id": self.run_id,
+                "current_status": current_status,
+                "operation": operation,
+            },
+        )

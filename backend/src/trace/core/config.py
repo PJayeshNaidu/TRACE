@@ -109,6 +109,10 @@ class ApplicationConfig(BaseSettings):
         default=None,
         description="Vector store connection endpoint URL",
     )
+    artifacts_dir: str = Field(
+        default=".trace/artifacts",
+        description="Filesystem directory for storing analysis run artifacts",
+    )
 
     # Environment and Observability
     app_env: Literal["development", "production", "test"] = Field(

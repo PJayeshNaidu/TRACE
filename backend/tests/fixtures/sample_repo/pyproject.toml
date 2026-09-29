@@ -1,0 +1,14 @@
+[project]
+name = "sample-app"
+version = "0.1.0"
+description = "Deterministic sample app for TRACE F02 analysis testing"
+dependencies = [
+    "fastapi>=0.115.0",
+    "pydantic>=2.8.0",
+    "sqlalchemy>=2.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+]

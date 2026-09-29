@@ -141,6 +141,9 @@ class StubGitProvider:
     async def list_remote_references(self, url: str, timeout_seconds: float = 10.0) -> list[str]:
         return self.remote_refs
 
+    async def resolve_revision(self, location: str | Path, ref: str = "HEAD") -> str | None:
+        return "1234567890123456789012345678901234567890"
+
 
 @pytest.fixture
 def stub_git_provider() -> StubGitProvider:
