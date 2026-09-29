@@ -112,13 +112,29 @@ class AnalysisRunListResponse(BaseModel):
 
 
 class AnalysisSummaryResponse(BaseModel):
-    """Detailed summary metrics for a completed analysis run."""
+    """Detailed summary metrics and complete JSON structure for an analysis run."""
+
+    model_config = ConfigDict(extra="allow")
 
     analysis_run_id: UUID
     repository_id: UUID
     status: AnalysisStatus
     duration_ms: float | None = None
     metrics: dict[str, int | float] = Field(default_factory=dict)
+    schema_version: str | None = None
+    analysis_run: dict[str, Any] | None = None
+    repository: dict[str, Any] | None = None
+    version_control: dict[str, Any] | None = None
+    files: list[dict[str, Any]] | None = None
+    python_files: list[dict[str, Any]] | None = None
+    external_dependencies: list[dict[str, Any]] | None = None
+    relationships: list[dict[str, Any]] | None = None
+    dependency_graph: dict[str, Any] | None = None
+    changes: dict[str, Any] | None = None
+    architecture: dict[str, Any] | None = None
+    configuration: dict[str, Any] | None = None
+    diagnostics: list[dict[str, Any]] | None = None
+    summary_file_path: str | None = None
 
 
 class EntityItem(BaseModel):
