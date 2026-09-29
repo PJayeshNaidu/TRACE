@@ -1,248 +1,182 @@
-# TRACE Repository Management and Code-Analysis Guide
+# TRACE User & Developer Guide
 
-This guide shows how to test TRACE with a real Git repository on Windows. It covers the complete workflow: preparing the database, starting the API, cloning a public repository locally, registering it, validating Git access, starting an analysis, and reviewing the results.
+Welcome to **TRACE** (Transformation Risk Analysis & Change Evaluation).
 
-The examples use the public [HTTPX](https://github.com/encode/httpx) repository. TRACE's current analyzer works with a **local Git working directory**. A remote Git URL can be registered and validated, but it is not cloned automatically for code analysis.
+This guide walks you through setting up and using the complete TRACE stack: **Project & Repository Management (F01)**, **Deterministic AST Code Analysis (F02)**, and the **Neo4j Projected Dependency Graph (F03)** with our interactive Streamlit Observatory.
 
-## What You Need
+---
 
-- Windows PowerShell
-- Python environment already installed for this project (`backend/.venv`)
-- Git installed and available from PowerShell (`git --version`)
-- PostgreSQL running with the connection configured in `backend/.env`
+## 🚀 Quick Start with Docker Compose (Recommended)
 
-The backend folder contains the API. Repositories to analyze should be kept outside it, in the top-level `test-repos` folder. This keeps test inputs separate from TRACE source code.
+The easiest way to start the entire TRACE platform (PostgreSQL, Neo4j, FastAPI Backend, and Streamlit Frontend) is with Docker Compose.
 
-```text
-TRACE/
-|-- backend/                 # TRACE API and database migrations
-|-- frontend/                # Optional Streamlit analysis viewer
-|-- test-repos/
-|   `-- httpx/               # Repository being analyzed
-`-- guide.md
+### 1. Ensure `.env` Exists
+Make sure a `.env` file exists at the root of `TRACE`:
+```powershell
+Copy-Item .env.example .env
 ```
 
-## 1. Open the Backend Environment
-
-Open PowerShell and change to the backend directory:
-
+### 2. Start All Services
 ```powershell
-cd "C:\Course Work\Course Tasks\TRACE\backend"
-.\.venv\Scripts\Activate.ps1
+docker compose up -d
 ```
 
-The prompt should begin with `(trace)`.
+This starts:
+| Service | URL / Port | Description |
+|---|---|---|
+| **Streamlit Observatory** | [http://localhost:8501](http://localhost:8501) | Full interactive web UI (Analysis & Visual Graph) |
+| **FastAPI Swagger Docs** | [http://localhost:8000/docs](http://localhost:8000/docs) | Interactive REST API documentation |
+| **Neo4j Browser** | [http://localhost:7474](http://localhost:7474) | Graph visualizer (User: `neo4j` / Password: `password`) |
+| **PostgreSQL** | `localhost:5432` | Relational database (`postgres`/`postgres`) |
 
-> If PowerShell blocks script execution, run `Set-ExecutionPolicy -Scope Process Bypass` in that PowerShell session, then activate the environment again.
+---
 
-## 2. Apply Database Migrations
+## 🛠️ Alternative: Running Locally without Docker
 
-TRACE stores projects, repositories, and analysis runs in PostgreSQL. Before using the API, create or update the tables with Alembic migrations.
+If you prefer running services directly on Windows with Python `uv`:
 
-The application loads `DATABASE_URL` from `backend/.env`, but Alembic needs that value available in the active PowerShell session. For the default local configuration, run:
-
+### 1. Start PostgreSQL & Neo4j
 ```powershell
+docker compose up -d postgres neo4j
+```
+
+### 2. Apply Database Migrations (PostgreSQL)
+```powershell
+cd c:\TRACE\backend
 $env:DATABASE_URL = "postgresql+asyncpg://postgres:postgres@localhost:5432/trace"
-alembic upgrade head
+uv run alembic upgrade head
 ```
 
-If your `backend/.env` uses a different PostgreSQL connection string, use that value in the first command instead.
-
-Successful output should include:
-
-```text
-Context impl PostgresqlImpl.
-Running upgrade ...
+### 3. Start Backend API
+```powershell
+uv run uvicorn trace.main:app --host 127.0.0.1 --port 8000
 ```
 
-Do not rely on output containing `Context impl SQLiteImpl.` for this workflow: that means Alembic used its SQLite fallback and did **not** migrate the PostgreSQL database that the API uses. The SQLite file is harmless, but it will not create the tables needed by the running API.
+### 4. Start Streamlit Frontend
+```powershell
+cd c:\TRACE
+uv run --with streamlit streamlit run frontend/app.py
+```
 
-## 3. Start the TRACE API
+---
 
-From the activated backend environment, start the server:
+## 🔬 Complete End-to-End Workflow
+
+### Step 1: Create a Project
+Open the Streamlit UI at [http://localhost:8501](http://localhost:8501) (or use Swagger `/docs`):
+- In the sidebar, expand **➕ Create New Project**.
+- Enter **Project Name** (e.g. `TRACE-Core` or `HTTPX-Project`).
+- Click **Create Project**.
+
+---
+
+### Step 2: Register a Repository
+
+You can analyze either **Remote Public/Private Git Repositories** or **Local Directory Paths**:
+
+#### Option A: Remote Git Repository (.git URL) — *Auto-Cloned*
+- Under **➕ Register Repository**, select **`🌐 Remote Git Repo`**.
+- Enter any cloneable URL:
+  - `https://github.com/encode/httpx.git`
+  - `https://github.com/psf/requests.git`
+  - `https://github.com/pallets/flask.git`
+- Branch: `HEAD` (or `main` / `master`).
+- Click **Register Repository**.
+
+#### Option B: Local Directory Path
+- Select **`📁 Local Path`**.
+- Enter `/workspace` (if using Docker) or `C:\TRACE` (if running locally on host).
+- Click **Register Repository**.
+
+---
+
+### Step 3: Trigger Static Code Analysis & Graph Build
+
+1. Select your registered repository from the dropdown.
+2. Enter optional exclude patterns (e.g. `tests/*, docs/*`).
+3. Click **🚀 Analyze Repository**.
+
+**What happens behind the scenes:**
+1. **F01**: Validates connectivity and resolves the Git commit SHA.
+2. **F02**: Clones the repo (if remote) and deterministically parses all Python files via AST, extracting:
+   - Modules, Classes, Functions/Methods, API Endpoints, Database Models, Services, Test Targets, and External Dependencies.
+   - Discovers structural relationships (`IMPORTS`, `CALLS`, `EXTENDS`, `EXPOSES`, etc.).
+3. **F03**: Automatically constructs the **Neo4j Projected Dependency Graph** linking the complete architectural hierarchy (`DEFINES`, `CALLS`, `IMPORTS`, `EXPOSES`).
+
+---
+
+## 🌐 Exploring the Dependency Graph
+
+### 1. In-App Modern Force-Directed Canvas (Streamlit)
+Navigate to the **`🌐 Dependency Graph (Neo4j)`** tab in Streamlit:
+- **🌌 Obsidian Neon UI**: Glowing node particle network with Google Fonts (**Inter** & **JetBrains Mono**).
+- **🔍 Symbol Search**: Type any function or class (e.g. `AnalysisService`) to auto-zoom and focus on it.
+- **🏷️ Filter Pills**: Click category pills (🟣 Modules, 🔵 Classes, 🟢 Functions, 🟠 Endpoints, 🔴 Database, 🟡 Packages) to filter and isolate specific component types.
+- **📱 HUD Inspector**: Click on any node circle to open the slide-in drawer showing exact file location, line number, and connection counts.
+- **🎮 Navigation Controls**: Zoom in/out, fit to screen, or toggle physics simulation.
+
+---
+
+### 2. Advanced Cypher Queries in Neo4j Browser
+Open [http://localhost:7474](http://localhost:7474) (Login: `neo4j` / `password`):
+
+#### View Full Connected Codebase:
+```cypher
+MATCH (source)-[rel]->(target)
+RETURN source, rel, target
+LIMIT 100
+```
+
+#### View Module & Class Architecture:
+```cypher
+MATCH (m:Module)-[r:DEFINES|IMPORTS]->(child)
+RETURN m, r, child
+LIMIT 50
+```
+
+#### Trace Function Call Hierarchy:
+```cypher
+MATCH (caller:Function)-[r:CALLS]->(callee:Function)
+RETURN caller, r, callee
+LIMIT 50
+```
+
+#### Blast Radius / Impact Analysis (Who depends on X?):
+```cypher
+MATCH path = (upstream)-[:CALLS|DEPENDS_ON*1..3]->(target {name: "get_analysis_service"})
+RETURN path
+```
+
+---
+
+## 📡 REST API Reference Summary
+
+Interactive Swagger UI available at `http://localhost:8000/docs`:
+
+| Area | Method | Endpoint | Description |
+|---|---|---|---|
+| **Health** | `GET` | `/health` | Postgres & Neo4j connectivity check |
+| **Projects** | `POST` | `/api/v1/projects` | Create a new project |
+| | `GET` | `/api/v1/projects` | List all projects |
+| **Repositories**| `POST` | `/api/v1/projects/{p_id}/repositories` | Register local or remote git repo |
+| | `POST` | `/api/v1/repositories/{r_id}/validate` | Probe repository connection |
+| **Analysis** | `POST` | `/api/v1/repositories/{r_id}/analyze` | Trigger asynchronous AST analysis |
+| | `GET` | `/api/v1/analyses/{run_id}` | Check analysis run status |
+| | `GET` | `/api/v1/analyses/{run_id}/summary` | Get summary metrics & file counts |
+| | `GET` | `/api/v1/analyses/{run_id}/entities` | List discovered code symbols |
+| | `GET` | `/api/v1/analyses/{run_id}/relationships`| List discovered structural links |
+| **Graph (F03)** | `POST` | `/api/v1/analyses/{run_id}/graph/build` | Trigger/rebuild Neo4j graph |
+| | `GET` | `/api/v1/analyses/{run_id}/graph/nodes` | List projected graph nodes |
+| | `GET` | `/api/v1/analyses/{run_id}/graph/relationships`| List graph edges |
+| | `GET` | `/api/v1/analyses/{run_id}/graph/dependents/{node_id}` | Find upstream dependents (impact) |
+| | `GET` | `/api/v1/analyses/{run_id}/graph/dependencies/{node_id}` | Find downstream dependencies |
+
+---
+
+## 🧪 Running Unit & Integration Tests
 
 ```powershell
-uvicorn trace.main:app --host 127.0.0.1 --port 8000
+cd c:\TRACE\backend
+uv run --extra dev pytest -v
 ```
-
-Keep this terminal open. The API documentation is available at:
-
-```text
-http://127.0.0.1:8000/docs
-```
-
-`http://127.0.0.1:8000/` returning `404 Not Found` is normal; TRACE does not define a homepage route.
-
-### Important Windows note
-
-Use the command above **without** `--reload` when testing local repositories. On Windows, Uvicorn reload mode can use an event loop that cannot start the Git subprocess TRACE uses for repository validation. The symptom is a validation response with `is_connected: false` and a blank `Git local probe failed:` error.
-
-## 4. Clone a Repository to Analyze
-
-Leave the API running and open a second PowerShell terminal. Clone test repositories under the project-root `test-repos` directory:
-
-```powershell
-cd "C:\Course Work\Course Tasks\TRACE"
-New-Item -ItemType Directory -Force .\test-repos
-git clone --depth 1 https://github.com/encode/httpx.git .\test-repos\httpx
-```
-
-This creates the local Git repository at:
-
-```text
-C:\Course Work\Course Tasks\TRACE\test-repos\httpx
-```
-
-Confirm it is a usable Git working tree:
-
-```powershell
-git -C .\test-repos\httpx rev-parse --is-inside-work-tree
-git -C .\test-repos\httpx branch --show-current
-```
-
-Expected output is `true` and the checked-out branch name (HTTPX currently uses `master`).
-
-## 5. Create a TRACE Project
-
-Open `http://127.0.0.1:8000/docs` in a browser.
-
-1. Find **POST `/api/v1/projects`**.
-2. Select **Try it out**.
-3. Enter the request body:
-
-   ```json
-   {
-     "name": "HTTPX Analysis Test",
-     "description": "Testing TRACE repository management and static code analysis"
-   }
-   ```
-
-4. Select **Execute**.
-
-The response should be `201 Created`. Copy the returned `id`; it is the `project_id` used in the next step.
-
-If you get an error saying `relation "projects" does not exist`, repeat [Step 2](#2-apply-database-migrations) and confirm it reports `PostgresqlImpl`.
-
-## 6. Register the Local Repository
-
-1. In `/docs`, find **POST `/api/v1/projects/{project_id}/repositories`**.
-2. Select **Try it out**.
-3. Paste your project UUID into the `project_id` field.
-4. Enter this request body:
-
-   ```json
-   {
-     "type": "LOCAL",
-     "location": "C:\\Course Work\\Course Tasks\\TRACE\\test-repos\\httpx"
-   }
-   ```
-
-5. Select **Execute**.
-
-A `201 Created` response means registration worked. Copy the returned repository `id`; it is the `repository_id` for all following calls.
-
-## 7. Validate Repository Access
-
-1. Find **POST `/api/v1/repositories/{repository_id}/validate`**.
-2. Paste the repository UUID into the path field.
-3. Select **Execute**.
-
-A successful response contains values like:
-
-```json
-{
-  "repository_id": "...",
-  "is_connected": true,
-  "status": "CONNECTED",
-  "detected_branch": "master"
-}
-```
-
-If validation fails:
-
-- Check that the path exactly matches the cloned folder.
-- Confirm `test-repos/httpx/.git` exists.
-- Run the API without `--reload`, as described in [Step 3](#3-start-the-trace-api).
-- Confirm `git --version` works in PowerShell.
-
-## 8. Trigger Repository Code Analysis
-
-1. Find **POST `/api/v1/repositories/{repository_id}/analyze`**.
-2. Paste the repository UUID.
-3. Use this request body:
-
-   ```json
-   {
-     "target_ref": "master",
-     "exclude_patterns": [
-       "docs/*",
-       ".github/*"
-     ]
-   }
-   ```
-
-4. Select **Execute**.
-
-TRACE responds with `202 Accepted` and an analysis run object. Copy its `id`; this is the `analysis_run_id`.
-
-The analysis runs in the background. Its status progresses through `PENDING`, `IN_PROGRESS`, and then either `COMPLETED` or `FAILED`.
-
-## 9. Check Analysis Status and Results
-
-Replace `ANALYSIS_RUN_ID` in the following URLs with the UUID returned by the analyze request. Do not type the literal text `ANALYSIS_RUN_ID`; the API expects a UUID.
-
-| Purpose | URL |
-| --- | --- |
-| Check status | `http://127.0.0.1:8000/api/v1/analyses/ANALYSIS_RUN_ID` |
-| Summary metrics | `http://127.0.0.1:8000/api/v1/analyses/ANALYSIS_RUN_ID/summary` |
-| Entities | `http://127.0.0.1:8000/api/v1/analyses/ANALYSIS_RUN_ID/entities?limit=200` |
-| Relationships | `http://127.0.0.1:8000/api/v1/analyses/ANALYSIS_RUN_ID/relationships?limit=200` |
-| Diagnostics | `http://127.0.0.1:8000/api/v1/analyses/ANALYSIS_RUN_ID/diagnostics?limit=100` |
-
-You can paste those completed URLs into a browser, or use their corresponding `GET` endpoints in `/docs`.
-
-After status reaches `COMPLETED`, inspect:
-
-- **Summary**: totals for files, Python files, modules, classes, functions, relationships, and diagnostics.
-- **Entities**: discovered code elements such as modules, classes, functions, dependencies, and tests.
-- **Relationships**: structural links such as imports, calls, inheritance, and dependencies.
-- **Diagnostics**: parser errors or warnings collected during scanning.
-
-## 10. Test Repository Management Features
-
-The same `/docs` interface lets you test repository-management behavior:
-
-- **GET `/api/v1/projects`**: list projects.
-- **GET `/api/v1/projects/{project_id}`**: view project details and repository count.
-- **GET `/api/v1/projects/{project_id}/repositories`**: list repositories belonging to a project.
-- **GET `/api/v1/repositories/{repository_id}`**: inspect repository status and metadata.
-- **POST `/api/v1/projects/{project_id}/archive`**: archive an active project.
-- **POST `/api/v1/projects/{project_id}/activate`**: reactivate an archived project.
-- **DELETE `/api/v1/repositories/{repository_id}`**: delete an unanalysed repository.
-
-Once a repository has an analysis run, deletion is intentionally rejected to preserve analysis history. That response is an expected behavior to test.
-
-## Optional: Use the Streamlit Analysis Viewer
-
-The Streamlit application displays analysis results, but it does not create projects or register repositories. Complete Steps 5 and 6 in `/docs` first.
-
-From the project root, start it in another terminal:
-
-```powershell
-cd "C:\Course Work\Course Tasks\TRACE"
-streamlit run frontend/app.py
-```
-
-Open the URL printed by Streamlit. Select the created project and registered repository, trigger an analysis, then inspect the metrics, entities, relationships, and diagnostics in the interface.
-
-## Quick Success Checklist
-
-- [ ] PostgreSQL migrations report `PostgresqlImpl`.
-- [ ] API is running at `http://127.0.0.1:8000/docs` without `--reload`.
-- [ ] The Git repository is cloned below `TRACE/test-repos`.
-- [ ] Project creation returns `201 Created`.
-- [ ] Repository registration returns `201 Created`.
-- [ ] Repository validation returns `is_connected: true` and `status: CONNECTED`.
-- [ ] Analysis returns `202 Accepted`.
-- [ ] The analysis run reaches `COMPLETED`.
-- [ ] Summary, entities, relationships, and diagnostics endpoints return results.
+Runs the complete test suite including graph projection, AST extraction, and service unit tests.
