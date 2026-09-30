@@ -1,4 +1,5 @@
 from trace.api.analyses.router import analyses_router
+from trace.api.diff.router import diff_router
 from trace.api.graph.router import graph_router
 from trace.api.health.router import health_router
 from trace.api.projects.router import projects_router
@@ -12,3 +13,4 @@ api_router.include_router(projects_router, prefix="/api/v1")
 api_router.include_router(repositories_router, prefix="/api/v1")
 api_router.include_router(analyses_router, prefix="/api/v1")
 api_router.include_router(graph_router, prefix="/api/v1")
+api_router.include_router(diff_router, prefix="/api/v1")

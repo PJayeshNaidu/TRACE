@@ -16,6 +16,7 @@ from trace.infrastructure.graph.gateway import (
 from trace.infrastructure.llm.adapters.openrouter import OpenRouterAdapter
 from trace.infrastructure.storage.artifact_store import FileArtifactStore
 from trace.services.analysis import AnalysisService
+from trace.services.diff import VersionChangeService
 from trace.services.graph import GraphService
 
 import httpx
@@ -99,6 +100,15 @@ def create_app(config: ApplicationConfig | None = None) -> FastAPI:
             artifact_store=app.state.artifact_store,
             git_provider=app.state.git,
             graph_service=graph_service,
+        )
+
+        # Version & Change Analyzer Service (F04)
+        app.state.diff_service = VersionChangeService(
+            db_gateway=db_gateway,
+            git_provider=app.state.git,
+            artifact_store=app.state.artifact_store,
+            analyzer=app.state.code_analyzer,
+            graph_gateway=app.state.graph,
         )
 
         try:

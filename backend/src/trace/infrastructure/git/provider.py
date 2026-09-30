@@ -7,13 +7,14 @@ are declared in this phase.
 """
 
 from pathlib import Path
+from trace.domain.diff import CommitInfo
 from trace.domain.repository import ConnectionValidationResult, RepositoryType
 from typing import Protocol, runtime_checkable
 
 
 @runtime_checkable
 class GitProvider(Protocol):
-    """Protocol defining non-destructive probe and reference operations on Git repositories."""
+    """Protocol defining non-destructive probe, reference, and diff operations on Git repositories."""
 
     async def validate_local(self, path: Path) -> ConnectionValidationResult:
         """Validate accessibility, structure, and HEAD branch of a local Git repository."""
@@ -45,4 +46,32 @@ class GitProvider(Protocol):
         timeout_seconds: float = 180.0,
     ) -> Path:
         """Clone a remote Git repository or fetch and checkout the target ref."""
+        ...
+
+    async def get_diff(
+        self,
+        location: str | Path,
+        base_ref: str,
+        target_ref: str,
+        timeout_seconds: float = 30.0,
+    ) -> str:
+        """Generate unified diff between two Git references or commits."""
+        ...
+
+    async def list_branches(
+        self,
+        location: str | Path,
+        timeout_seconds: float = 10.0,
+    ) -> list[str]:
+        """List local and remote branch names available in repository."""
+        ...
+
+    async def list_commits(
+        self,
+        location: str | Path,
+        branch: str | None = None,
+        limit: int = 30,
+        timeout_seconds: float = 10.0,
+    ) -> list[CommitInfo]:
+        """Retrieve recent commit metadata from specified branch."""
         ...

@@ -251,3 +251,45 @@ async def test_run_command_timeout_kill() -> None:
             ["ls-remote", "https://192.0.2.1/test.git"],
             timeout_seconds=0.0001,
         )
+
+
+@pytest.mark.asyncio
+async def test_get_diff_branches_and_commits(tmp_path: Path) -> None:
+    """get_diff, list_branches, and list_commits work correctly on real git repository."""
+    repo_dir = tmp_path / "diff_repo"
+    repo_dir.mkdir()
+    subprocess.run(["git", "init", "-b", "main", str(repo_dir)], check=True, capture_output=True)
+    subprocess.run(["git", "-C", str(repo_dir), "config", "user.name", "Diff Author"], check=True)
+    subprocess.run(["git", "-C", str(repo_dir), "config", "user.email", "author@trace.io"], check=True)
+
+    # Initial commit on main
+    file1 = repo_dir / "calculator.py"
+    file1.write_text("def add(a: int, b: int) -> int:\n    return a + b\n")
+    subprocess.run(["git", "-C", str(repo_dir), "add", "."], check=True)
+    subprocess.run(["git", "-C", str(repo_dir), "commit", "-m", "feat: initial add function"], check=True)
+
+    # Create feature branch
+    subprocess.run(["git", "-C", str(repo_dir), "checkout", "-b", "feature/multiply"], check=True)
+    file1.write_text("def add(a: int, b: int) -> int:\n    return a + b\n\ndef multiply(a: int, b: int) -> int:\n    return a * b\n")
+    subprocess.run(["git", "-C", str(repo_dir), "add", "."], check=True)
+    subprocess.run(["git", "-C", str(repo_dir), "commit", "-m", "feat: add multiply function"], check=True)
+
+    provider = SubprocessGitProvider()
+
+    # 1. list_branches
+    branches = await provider.list_branches(repo_dir)
+    assert "main" in branches
+    assert "feature/multiply" in branches
+
+    # 2. list_commits
+    commits = await provider.list_commits(repo_dir, branch="feature/multiply", limit=10)
+    assert len(commits) == 2
+    assert commits[0].message == "feat: add multiply function"
+    assert "Diff Author" in commits[0].author
+    assert commits[1].message == "feat: initial add function"
+
+    # 3. get_diff
+    diff_text = await provider.get_diff(repo_dir, base_ref="main", target_ref="feature/multiply")
+    assert "calculator.py" in diff_text
+    assert "+def multiply(a: int, b: int) -> int:" in diff_text
+

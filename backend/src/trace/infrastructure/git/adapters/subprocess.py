@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 from time import perf_counter
 from trace.core.config import ApplicationConfig
+from trace.domain.diff import CommitInfo
 from trace.domain.repository import ConnectionValidationResult, RepositoryType
 
 import structlog
@@ -237,14 +238,20 @@ class SubprocessGitProvider:
         path = Path(location)
         if not path.exists():
             return None
-        rc, stdout, _ = await self._run_command(
-            ["-C", str(path), "rev-parse", ref],
-            timeout_seconds=self.timeout_seconds,
-        )
-        if rc == 0 and stdout.strip():
-            sha = stdout.strip()
-            if len(sha) == 40 and all(c in "0123456789abcdefABCDEF" for c in sha):
-                return sha.lower()
+
+        candidates = [ref]
+        if not ref.startswith(("origin/", "refs/")) and not ref.startswith("HEAD"):
+            candidates.extend([f"origin/{ref}", f"refs/heads/{ref}", f"refs/remotes/origin/{ref}"])
+
+        for cand in candidates:
+            rc, stdout, _ = await self._run_command(
+                ["-C", str(path), "rev-parse", cand],
+                timeout_seconds=self.timeout_seconds,
+            )
+            if rc == 0 and stdout.strip():
+                sha = stdout.strip()
+                if len(sha) == 40 and all(c in "0123456789abcdefABCDEF" for c in sha):
+                    return sha.lower()
         return None
 
     async def clone_or_checkout(
@@ -291,3 +298,110 @@ class SubprocessGitProvider:
                         timeout_seconds=timeout_seconds,
                     )
         return dest
+
+    async def get_diff(
+        self,
+        location: str | Path,
+        base_ref: str,
+        target_ref: str,
+        timeout_seconds: float = 30.0,
+    ) -> str:
+        """Generate unified diff between two Git references or commits."""
+        path = Path(location).resolve()
+        if not path.exists():
+            raise FileNotFoundError(f"Repository directory does not exist: {path}")
+
+        base_candidates = [base_ref]
+        if not base_ref.startswith(("origin/", "refs/")) and not base_ref.startswith("HEAD"):
+            base_candidates.append(f"origin/{base_ref}")
+
+        target_candidates = [target_ref]
+        if not target_ref.startswith(("origin/", "refs/")) and not target_ref.startswith("HEAD"):
+            target_candidates.append(f"origin/{target_ref}")
+
+        for b in base_candidates:
+            for t in target_candidates:
+                args = ["-C", str(path), "diff", "-U3", "--find-renames", f"{b}..{t}"]
+                rc, stdout, stderr = await self._run_command(args, timeout_seconds=timeout_seconds)
+                if rc == 0:
+                    return stdout
+
+        # Fallback to direct two-arg comparison
+        fallback_args = ["-C", str(path), "diff", "-U3", "--find-renames", base_ref, target_ref]
+        rc, stdout, stderr = await self._run_command(fallback_args, timeout_seconds=timeout_seconds)
+        if rc != 0:
+            raise RuntimeError(
+                f"Git diff failed between {base_ref} and {target_ref}: {stderr.strip() or stdout.strip()}"
+            )
+        return stdout
+
+    async def list_branches(
+        self,
+        location: str | Path,
+        timeout_seconds: float = 10.0,
+    ) -> list[str]:
+        """List local and remote branch names available in repository."""
+        path = Path(location).resolve()
+        if not path.exists():
+            return []
+
+        args = ["-C", str(path), "branch", "-a", "--format=%(refname:short)"]
+        rc, stdout, _ = await self._run_command(args, timeout_seconds=timeout_seconds)
+        if rc != 0 or not stdout.strip():
+            return []
+
+        branches: list[str] = []
+        seen = set()
+        for line in stdout.strip().splitlines():
+            branch = line.strip()
+            # Clean up origin/ prefix if duplicate or HEAD pointers
+            if not branch or "HEAD" in branch:
+                continue
+            clean_name = branch.removeprefix("origin/")
+            if clean_name not in seen:
+                seen.add(clean_name)
+                branches.append(clean_name)
+        return sorted(branches)
+
+    async def list_commits(
+        self,
+        location: str | Path,
+        branch: str | None = None,
+        limit: int = 30,
+        timeout_seconds: float = 10.0,
+    ) -> list[CommitInfo]:
+        """Retrieve recent commit metadata from specified branch."""
+        path = Path(location).resolve()
+        if not path.exists():
+            return []
+
+        # Use unit separator (0x1F) for safe delimiter-free parsing
+        format_spec = "%H\x1f%h\x1f%s\x1f%an <%ae>\x1f%cI"
+        args = ["-C", str(path), "log", f"-n{max(1, limit)}", f"--format={format_spec}"]
+        if branch and branch != "HEAD":
+            resolved_branch = branch
+            if not branch.startswith(("origin/", "refs/")):
+                rc, _, _ = await self._run_command(["-C", str(path), "rev-parse", branch], timeout_seconds=5.0)
+                if rc != 0:
+                    resolved_branch = f"origin/{branch}"
+            args.append(resolved_branch)
+
+        rc, stdout, _ = await self._run_command(args, timeout_seconds=timeout_seconds)
+        if rc != 0 or not stdout.strip():
+            return []
+
+        commits: list[CommitInfo] = []
+        for line in stdout.strip().splitlines():
+            parts = line.split("\x1f")
+            if len(parts) >= 5:
+                commits.append(
+                    CommitInfo(
+                        commit_hash=parts[0].strip(),
+                        short_hash=parts[1].strip(),
+                        message=parts[2].strip(),
+                        author=parts[3].strip(),
+                        timestamp=parts[4].strip(),
+                    )
+                )
+        return commits
+

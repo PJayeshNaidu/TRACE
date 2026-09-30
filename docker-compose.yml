@@ -71,6 +71,8 @@ services:
     restart: unless-stopped
     ports:
       - "8501:8501"
+    volumes:
+      - ./frontend:/app
     environment:
       - TRACE_API_URL=http://backend:8000/api/v1
     depends_on:

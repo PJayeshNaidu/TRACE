@@ -149,6 +149,47 @@ RETURN path
 
 ---
 
+## ⚡ Version & Change Impact Analyzer (F04)
+
+TRACE provides an AST-aware semantic diff engine that analyzes code evolution between branches or commits to detect **Breaking Changes** and calculate the **Blast Radius** using the Neo4j dependency graph.
+
+### 🌟 Comparison Modes Supported:
+1. **🌿 Branch vs. Branch**: Compare two branches (e.g., `main` vs. `feature/user-auth` or `Development`).
+2. **⚡ Quick 2-Commit Diff**: Compare `HEAD~1` vs. `HEAD` on any active branch.
+3. **🎯 Custom Commit Range**: Compare any arbitrary Git base commit SHA with a target commit SHA.
+
+### 🔍 What the Analyzer Detects:
+- **Symbol Deltas**: AST-level added, modified, or removed Functions, Methods, Classes, and Endpoints.
+- **🚨 Breaking Changes Detection**:
+  - Removed formal parameters in public functions/methods.
+  - Added required parameters without default values.
+  - Return type annotation alterations.
+  - Removed or modified API endpoint paths and HTTP verbs.
+  - Class inheritance changes.
+- **💥 Blast Radius & Risk Assessment**:
+  - Transitive Neo4j graph traversal (`CALLS`, `IMPORTS`, `DEPENDS_ON`) up to 3 hops.
+  - Identifies all upstream callers and dependents that need regression testing.
+  - Computes an aggregate risk rating: `LOW`, `MEDIUM`, `HIGH`, or `CRITICAL`.
+
+### 🖥️ Using the UI:
+1. Navigate to the **`⚡ Version & Change Impact Analyzer (F04)`** tab in Streamlit (`http://localhost:8501`).
+2. Select your comparison mode:
+   - **Branch Comparison**: Pick Base Branch (e.g. `Project-Foundation`) and Target Branch (e.g. `Dependency-Graph` or `Development`).
+   - **Quick Diff (HEAD~1 vs HEAD)**: Compare the latest two commits.
+   - **Custom Commit Range**: Pick Base Commit SHA and Target Commit SHA.
+3. Click **⚡ Run Change Analysis**.
+4. Explore the results across 4 dedicated inspection subtabs:
+   - **💥 Breaking Changes & Symbol Deltas**: Inspect incompatible signature changes, reason descriptions, and before/after signatures.
+   - **🌐 Blast Radius & Graph Impact**:
+     - **Interactive Visual Impact Graph**: Force-directed Vis.js canvas highlighting 🔴 Breaking Changes (red glow), 🟡 Modified Symbols (amber glow), and 🟣 Impacted Dependents (purple glow) with directional dependency arrows.
+     - **HUD Node Inspector & Search**: Click any node to open the side inspector, search for symbols, filter by category pills, or toggle physics simulation.
+     - **📥 Download Impact Graph JSON**: Export the complete structured graph (`nodes`, `edges`, `breaking_changes`, `blast_radius_summary`) with one click.
+     - **📋 Raw JSON Inspector**: Expand the JSON inspector directly in the UI to inspect nodes and relationship payloads.
+   - **📁 File Diffs & Hunks**: Line-by-line syntax-colored diffs with green additions and red deletions.
+   - **📜 Commit Log**: List of all Git commits included in the comparison changeset.
+
+---
+
 ## 📡 REST API Reference Summary
 
 Interactive Swagger UI available at `http://localhost:8000/docs`:
@@ -160,7 +201,9 @@ Interactive Swagger UI available at `http://localhost:8000/docs`:
 | | `GET` | `/api/v1/projects` | List all projects |
 | **Repositories**| `POST` | `/api/v1/projects/{p_id}/repositories` | Register local or remote git repo |
 | | `POST` | `/api/v1/repositories/{r_id}/validate` | Probe repository connection |
-| **Analysis** | `POST` | `/api/v1/repositories/{r_id}/analyze` | Trigger asynchronous AST analysis |
+| | `GET` | `/api/v1/repositories/{r_id}/branches` | List available git branches |
+| | `GET` | `/api/v1/repositories/{r_id}/commits` | List recent git commit log |
+| **Analysis (F02)** | `POST` | `/api/v1/repositories/{r_id}/analyze` | Trigger asynchronous AST analysis |
 | | `GET` | `/api/v1/analyses/{run_id}` | Check analysis run status |
 | | `GET` | `/api/v1/analyses/{run_id}/summary` | Get summary metrics & file counts |
 | | `GET` | `/api/v1/analyses/{run_id}/entities` | List discovered code symbols |
@@ -170,6 +213,8 @@ Interactive Swagger UI available at `http://localhost:8000/docs`:
 | | `GET` | `/api/v1/analyses/{run_id}/graph/relationships`| List graph edges |
 | | `GET` | `/api/v1/analyses/{run_id}/graph/dependents/{node_id}` | Find upstream dependents (impact) |
 | | `GET` | `/api/v1/analyses/{run_id}/graph/dependencies/{node_id}` | Find downstream dependencies |
+| **Version & Diff (F04)** | `POST` | `/api/v1/analyses/compare` | Compare 2 branches or commits for breaking changes & blast radius |
+| | `GET` | `/api/v1/analyses/compare/{comparison_id}` | Retrieve persisted version comparison report |
 
 ---
 
@@ -179,4 +224,5 @@ Interactive Swagger UI available at `http://localhost:8000/docs`:
 cd c:\TRACE\backend
 uv run --extra dev pytest -v
 ```
-Runs the complete test suite including graph projection, AST extraction, and service unit tests.
+Runs the complete test suite (255+ tests) including AST extraction, Neo4j graph projection, diff parsing, AST symbol diffing, breaking change detection, and API routes.
+
