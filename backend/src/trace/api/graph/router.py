@@ -144,7 +144,7 @@ async def get_graph_build_status(
 async def list_graph_nodes(
     analysis_run_id: uuid.UUID,
     graph_gateway: Annotated[GraphGateway, Depends(get_graph_gateway)],
-    limit: Annotated[int, Query(ge=1, le=500)] = 50,
+    limit: Annotated[int, Query(ge=1, le=5000)] = 500,
     offset: Annotated[int, Query(ge=0)] = 0,
     label: Annotated[str | None, Query(description="Filter by node label (e.g. Module, Class, Function)")] = None,
 ) -> GraphNodeListResponse:
@@ -172,7 +172,7 @@ async def list_graph_nodes(
 async def list_graph_relationships(
     analysis_run_id: uuid.UUID,
     graph_gateway: Annotated[GraphGateway, Depends(get_graph_gateway)],
-    limit: Annotated[int, Query(ge=1, le=500)] = 50,
+    limit: Annotated[int, Query(ge=1, le=5000)] = 500,
     offset: Annotated[int, Query(ge=0)] = 0,
     rel_type: Annotated[str | None, Query(description="Filter by relationship type (e.g. CALLS, IMPORTS)")] = None,
 ) -> GraphRelationshipListResponse:
@@ -277,6 +277,13 @@ RETURN src, labels(src) AS src_lbls,
        r.evidence_file_path AS efp,
        r.evidence_start_line AS esl,
        tgt, labels(tgt) AS tgt_lbls
+ORDER BY CASE type(r)
+  WHEN 'CALLS' THEN 1
+  WHEN 'EXTENDS' THEN 2
+  WHEN 'IMPORTS' THEN 3
+  WHEN 'EXPOSES' THEN 4
+  WHEN 'DEFINES' THEN 5
+  ELSE 6 END
 """
 
 _QUERY_DEPENDENTS_CYPHER = """

@@ -608,16 +608,27 @@ def render_graph_canvas(nodes: list[dict[str, Any]], rels: list[dict[str, Any]])
             edgesDataSet.clear();
             edgesDataSet.add(allEdges);
           }} else {{
-            var filteredNodes = allNodes.filter(function(n) {{ return n.group === groupName; }});
-            var nodeSet = new Set(filteredNodes.map(function(n) {{ return n.id; }}));
-            var filteredEdges = allEdges.filter(function(e) {{
-              return nodeSet.has(e.from) || nodeSet.has(e.to);
+            var groupNodes = allNodes.filter(function(n) {{ return n.group === groupName; }});
+            var groupNodeIds = new Set(groupNodes.map(function(n) {{ return n.id; }}));
+            
+            // Edges connected to this group
+            var connectedEdges = allEdges.filter(function(e) {{
+              return groupNodeIds.has(e.from) || groupNodeIds.has(e.to);
             }});
+            
+            // Ensure both endpoints exist in nodesDataSet so vis-network can draw all edges!
+            var visibleNodeIds = new Set(groupNodeIds);
+            connectedEdges.forEach(function(e) {{
+              visibleNodeIds.add(e.from);
+              visibleNodeIds.add(e.to);
+            }});
+            
+            var visibleNodes = allNodes.filter(function(n) {{ return visibleNodeIds.has(n.id); }});
 
             nodesDataSet.clear();
-            nodesDataSet.add(filteredNodes);
+            nodesDataSet.add(visibleNodes);
             edgesDataSet.clear();
-            edgesDataSet.add(filteredEdges);
+            edgesDataSet.add(connectedEdges);
           }}
           network.fit({{ animation: {{ duration: 400 }} }});
         }}
@@ -1341,11 +1352,48 @@ def run_app() -> None:
     selected_repo_name = st.sidebar.selectbox("Select Repository", options=list(repo_map.keys()))
     selected_repo_id = repo_map[selected_repo_name]
 
+    # Sidebar: Optional AI Reasoning Settings (F05)
+    with st.sidebar.expander("🔑 AI Reasoning Settings (Optional)", expanded=False):
+        st.caption("Configure OpenRouter API to enrich change impact justifications. Leave blank for 100% offline deterministic heuristic mode.")
+        openrouter_key = st.text_input(
+            "OpenRouter API Key",
+            type="password",
+            value=os.getenv("OPENROUTER_API_KEY", ""),
+            help="Optional key for OpenRouter models. If omitted, the offline deterministic rule engine runs with zero cost and zero latency.",
+        )
+        model_options = [
+            "nvidia/nemotron-3.5-lightning:free",
+            "meta-llama/llama-3.3-70b-instruct:free",
+            "google/gemini-2.0-flash",
+            "anthropic/claude-3.5-sonnet",
+            "openai/gpt-4o",
+            "Custom Model (type below)...",
+        ]
+        selected_model_choice = st.selectbox(
+            "AI Model",
+            model_options,
+            index=0,
+            help="Select an OpenRouter model or choose Custom to specify any model ID.",
+        )
+        if selected_model_choice == "Custom Model (type below)...":
+            openrouter_model = st.text_input(
+                "Custom Model Identifier",
+                value="nvidia/nemotron-3.5-lightning:free",
+                help="Enter any valid OpenRouter model tag (e.g. nvidia/nemotron-3.5-lightning:free)",
+            ).strip()
+        else:
+            openrouter_model = selected_model_choice
+        enable_ai = st.checkbox(
+            "Enable AI Synthesis",
+            value=bool(openrouter_key.strip()),
+            help="Toggle between AI-enriched explanations and offline deterministic rules.",
+        )
 
     # Observatory Top-Level Navigation
-    tab_intelligence, tab_version_diff = st.tabs([
+    tab_intelligence, tab_version_diff, tab_impact_engine = st.tabs([
         "🔬 Code Intelligence & Dependency Graph (F02/F03)",
-        "⚡ Version & Change Impact Analyzer (F04)",
+        "⚡ Version & Change Analyzer (F04)",
+        "🎯 Impact & Risk Analysis Engine (F05)",
     ])
 
     with tab_intelligence:
@@ -1451,10 +1499,10 @@ def run_app() -> None:
                     st.markdown("#### 🌐 Interactive Dependency Graph Explorer")
                     st.caption("Force-directed interactive visual graph. Drag nodes, zoom, or hover to inspect symbol details.")
                     
-                    g_nodes_code, g_nodes_data = make_api_request(f"{api_url}/analyses/{active_run_id}/graph/nodes?limit=300")
+                    g_nodes_code, g_nodes_data = make_api_request(f"{api_url}/analyses/{active_run_id}/graph/nodes?limit=1500")
                     g_nodes = g_nodes_data.get("items", []) if g_nodes_code == 200 and g_nodes_data else []
 
-                    g_rels_code, g_rels_data = make_api_request(f"{api_url}/analyses/{active_run_id}/graph/relationships?limit=300")
+                    g_rels_code, g_rels_data = make_api_request(f"{api_url}/analyses/{active_run_id}/graph/relationships?limit=1500")
                     g_rels = g_rels_data.get("items", []) if g_rels_code == 200 and g_rels_data else []
 
                     if g_nodes:
@@ -1726,6 +1774,385 @@ def run_app() -> None:
                             st.markdown(f"{idx}. `{m}`")
                     else:
                         st.info("No commit messages retrieved for this comparison.")
+
+    with tab_impact_engine:
+        st.subheader("🎯 Transformation Risk & Behavioral Impact Propagation Engine (F05)")
+        st.caption(
+            "Bridges Git Diff hunks with AST scopes, evaluates multi-hop blast radius across inverted call graphs ($G^T$), "
+            "infers diff syntax deltas (def/return/raise), and synthesizes actionable remediation checklists."
+        )
+
+        # Mode indicator badge
+        if enable_ai and openrouter_key.strip():
+            mode_badge = f"""<div style="background: rgba(147, 51, 234, 0.15); border: 1px solid #c084fc; border-radius: 8px; padding: 8px 14px; margin-bottom: 16px; display: inline-flex; align-items: center; gap: 8px;">
+                <span style="font-size: 14px;">🤖</span>
+                <span style="font-size: 0.85rem; font-weight: 600; color: #e9d5ff;">Mode: AI-Enriched Synthesis</span>
+                <span style="background: #9333ea; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-family: monospace;">{openrouter_model}</span>
+            </div>"""
+        else:
+            mode_badge = """<div style="background: rgba(16, 185, 129, 0.15); border: 1px solid #34d399; border-radius: 8px; padding: 8px 14px; margin-bottom: 16px; display: inline-flex; align-items: center; gap: 8px;">
+                <span style="font-size: 14px;">⚡</span>
+                <span style="font-size: 0.85rem; font-weight: 600; color: #a7f3d0;">Mode: Deterministic Heuristic Engine</span>
+                <span style="background: #059669; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">100% Offline · Zero Latency & Cost</span>
+            </div>"""
+        st.markdown(mode_badge, unsafe_allow_html=True)
+
+        col_i1, col_i2, col_i3 = st.columns([2, 2, 1])
+        with col_i1:
+            imp_base = st.text_input("Base Revision (Commit SHA / Branch / Tag)", value="HEAD~1", key="f05_base")
+        with col_i2:
+            imp_target = st.text_input("Target Revision (Commit SHA / Branch / Tag)", value="HEAD", key="f05_target")
+        with col_i3:
+            st.write("")
+            st.write("")
+            run_impact_btn = st.button("🚀 Evaluate Impact & Risk", type="primary", use_container_width=True)
+
+        if run_impact_btn:
+            with st.spinner("Executing mathematical interval intersection, transposed BFS blast radius, and delta inference..."):
+                payload = {
+                    "repository_id": selected_repo_id,
+                    "base_ref": imp_base.strip() or "HEAD~1",
+                    "target_ref": imp_target.strip() or "HEAD",
+                    "llm_config": {
+                        "enabled": bool(enable_ai and openrouter_key.strip()),
+                        "api_key": openrouter_key.strip() if enable_ai else None,
+                        "model": openrouter_model if enable_ai else "anthropic/claude-3.5-sonnet",
+                    },
+                }
+                imp_code, imp_res = make_api_request(
+                    f"{api_url}/impact/evaluate",
+                    method="POST",
+                    payload=payload,
+                    timeout=120.0,
+                )
+                if imp_code in (200, 201) and imp_res:
+                    st.session_state["active_impact_data"] = imp_res
+                    st.success("Impact & Risk evaluation completed successfully!")
+                else:
+                    st.error(f"Impact evaluation failed ({imp_code}): {imp_res}")
+
+        active_impact = st.session_state.get("active_impact_data")
+        if active_impact:
+            st.divider()
+
+            meta = active_impact.get("analysis_metadata", {})
+            risk_meta = active_impact.get("risk_analysis", {})
+            risk_lvl = risk_meta.get("risk_level", "LOW")
+
+            risk_colors = {
+                "CRITICAL": "#ef4444",
+                "HIGH": "#f97316",
+                "MEDIUM": "#eab308",
+                "LOW": "#10b981",
+            }
+            r_col = risk_colors.get(risk_lvl, "#10b981")
+
+            # Risk Summary Header Banner
+            st.markdown(
+                f"""
+                <div style="background: linear-gradient(135deg, rgba(15,23,42,0.95), rgba(30,41,59,0.95)); border: 1px solid {r_col}; border-radius: 12px; padding: 20px; margin-bottom: 22px; box-shadow: 0 0 30px {r_col}33;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
+                    <div>
+                      <div style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1.5px; color: #94a3b8; font-weight: 600;">Architectural Risk Assessment</div>
+                      <h2 style="margin: 4px 0 0 0; color: {r_col}; font-size: 2.1rem; font-weight: 800; letter-spacing: 0.5px;">{risk_lvl} RISK</h2>
+                      <div style="font-size: 0.85rem; color: #cbd5e1; margin-top: 6px;">
+                        Comparing <code>{meta.get('base_commit', '')[:7]}</code> ➜ <code>{meta.get('current_commit', '')[:7]}</code>
+                        &bull; Reasoning Mode: <strong>{meta.get('reasoning_mode', 'HEURISTIC')}</strong>
+                      </div>
+                    </div>
+                    <div style="display: flex; gap: 12px;">
+                      <div style="background: {r_col}22; border: 1px solid {r_col}; border-radius: 8px; padding: 8px 16px; text-align: center;">
+                        <div style="font-size: 1.5rem; font-weight: 800; color: {r_col};">{meta.get('total_callers_at_risk', 0)}</div>
+                        <div style="font-size: 0.72rem; text-transform: uppercase; color: #cbd5e1; font-weight: 600;">Callers At Risk</div>
+                      </div>
+                      <div style="background: rgba(56, 189, 248, 0.15); border: 1px solid #38bdf8; border-radius: 8px; padding: 8px 16px; text-align: center;">
+                        <div style="font-size: 1.5rem; font-weight: 800; color: #38bdf8;">{meta.get('total_impacted_downstream_files', 0)}</div>
+                        <div style="font-size: 0.72rem; text-transform: uppercase; color: #cbd5e1; font-weight: 600;">Downstream Files</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            # Metric Cards
+            m_col1, m_col2, m_col3, m_col4 = st.columns(4)
+            m_col1.metric("Changed Entities", meta.get("total_changed_entities", 0))
+            m_col2.metric("Deleted Files", meta.get("total_deleted_files", 0))
+            m_col3.metric("Impacted Downstream Files", meta.get("total_impacted_downstream_files", 0))
+            m_col4.metric("Upstream Callers At Risk", meta.get("total_callers_at_risk", 0))
+
+            # AI Remediation Directive (Where & What to Change)
+            ai_dir = active_impact.get("risk_analysis", {}).get("ai_directive") or active_impact.get("ai_directive")
+            if ai_dir:
+                where_items = "".join(f"<li><code>{loc}</code></li>" for loc in ai_dir.get("where_to_change", [])) or "<li>All direct callers identified below</li>"
+                what_items = "".join(f"<li>{act}</li>" for act in ai_dir.get("what_to_change", [])) or "<li>Verify and test call sites</li>"
+                st.markdown(
+                    f"""
+                    <div style="background: linear-gradient(135deg, rgba(88, 28, 135, 0.25), rgba(30, 27, 75, 0.4)); border: 1px solid #a855f7; border-radius: 10px; padding: 16px 20px; margin-top: 14px; margin-bottom: 20px;">
+                      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                        <span style="font-size: 1.2rem;">🤖</span>
+                        <span style="font-size: 1.05rem; font-weight: 700; color: #f3e8ff;">AI Remediation Directive: Where & What to Change</span>
+                      </div>
+                      <div style="font-size: 0.92rem; color: #e9d5ff; margin-bottom: 12px; font-weight: 500;">
+                        {ai_dir.get("executive_summary", "")}
+                      </div>
+                      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                        <div style="background: rgba(0,0,0,0.25); border-radius: 6px; padding: 10px 14px;">
+                          <strong style="color: #c084fc; font-size: 0.85rem; text-transform: uppercase;">📍 Where to Change:</strong>
+                          <ul style="margin: 6px 0 0 0; padding-left: 20px; font-size: 0.85rem; color: #cbd5e1;">
+                            {where_items}
+                          </ul>
+                        </div>
+                        <div style="background: rgba(0,0,0,0.25); border-radius: 6px; padding: 10px 14px;">
+                          <strong style="color: #38bdf8; font-size: 0.85rem; text-transform: uppercase;">🛠️ What to Change:</strong>
+                          <ul style="margin: 6px 0 0 0; padding-left: 20px; font-size: 0.85rem; color: #cbd5e1;">
+                            {what_items}
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+            # Subtabs for F05
+            t_graph, t_details, t_plan, t_json = st.tabs([
+                "🌐 Transposed Call Graph & Blast Radius",
+                "🔍 Detailed Entity Impacts & Synthesized Guidance",
+                "📋 Actionable Remediation Plan & CI/CD",
+                "📦 Complete 4-Key JSON Payload",
+            ])
+
+            with t_graph:
+                st.markdown("#### 🌳 Behavioral Impact Propagation Tree ($G^T$)")
+                st.caption("Visualizes altered code entities and their direct/multi-hop upstream callers traced via transposed BFS traversal.")
+
+                impact_data = active_impact.get("impact_analysis", {})
+                detailed_list = impact_data.get("detailed_impacts", [])
+
+                if detailed_list:
+                    for d in detailed_list:
+                        ent = d.get("entity", "entity")
+                        f_path = d.get("file", "")
+                        lines = d.get("lines_affected", [0, 0])
+                        callers = d.get("callers_at_risk", [])
+                        downstream = d.get("downstream_dependent_files", [])
+                        num_callers = len(callers)
+                        ent_type = d.get("entity_type", "function").upper()
+
+                        badge_label = f"💥 {num_callers} Caller(s) At Risk" if num_callers > 0 else "✅ Isolated (0 Callers)"
+
+                        with st.expander(f"▼ {f_path}::{ent} (lines {lines[0]}-{lines[1]})  [{ent_type}]  —  {badge_label}", expanded=True):
+                            if callers:
+                                st.markdown(f"**↳ Impacts {len(callers)} Upstream Caller(s):**")
+                                for c in callers:
+                                    dist = c.get("distance", 1)
+                                    c_name = c.get("qualified_name", "")
+                                    c_file = c.get("file_path", "")
+                                    c_chain = c.get("call_chain", [])
+
+                                    dist_badge = "🔴 Direct Caller (Depth 1)" if dist == 1 else f"🟠 Transitive Caller (Depth {dist})"
+                                    chain_str = " ➜ ".join(c_chain) if c_chain else f"{c_name} ➜ {ent}"
+
+                                    st.markdown(
+                                        f"""
+                                        <div style="background: rgba(15, 23, 42, 0.7); border-left: 3px solid #f59e0b; padding: 10px 14px; border-radius: 0 6px 6px 0; margin-bottom: 8px; border: 1px solid rgba(255,255,255,0.06); border-left: 3px solid #f59e0b;">
+                                          <div style="display: flex; justify-content: space-between; align-items: center;">
+                                            <span style="font-weight: 600; color: #f8fafc; font-size: 0.92rem;">↳ impacts: <code>{c_file}::{c_name}</code></span>
+                                            <span style="font-size: 0.75rem; background: rgba(245, 158, 11, 0.2); color: #fbbf24; padding: 2px 8px; border-radius: 4px; font-weight: 600;">{dist_badge}</span>
+                                          </div>
+                                          <div style="font-size: 0.8rem; color: #94a3b8; margin-top: 4px; font-family: monospace;">
+                                            Call Chain: <span style="color: #cbd5e1;">{chain_str}</span>
+                                          </div>
+                                        </div>
+                                        """,
+                                        unsafe_allow_html=True,
+                                    )
+                            else:
+                                st.markdown("<div style='color: #10b981; font-size: 0.88rem; padding: 6px 0;'>↳ ✅ <em>No upstream callers invoke this modified entity directly or transitively.</em></div>", unsafe_allow_html=True)
+
+                            # Downstream non-code files
+                            other_downstream = [f for f in downstream if f != f_path]
+                            if other_downstream:
+                                st.caption("📁 **Referenced in Non-Code Files:**")
+                                st.write(", ".join(f"`{f}`" for f in other_downstream))
+                else:
+                    st.info("No code symbols modified in this changeset.")
+
+                # Render graphical flowchart in an expander if available
+                dep_graph = active_impact.get("dependency_graph", {})
+                mermaid_code = dep_graph.get("mermaid", "")
+                if mermaid_code:
+                    with st.expander("📊 View Graphical Call Graph Flowchart (Mermaid)", expanded=False):
+                        mermaid_html = f"""
+                        <!DOCTYPE html>
+                        <html>
+                        <head>
+                          <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+                          <script>mermaid.initialize({{startOnLoad: true, theme: 'dark'}});</script>
+                        </head>
+                        <body style="background: transparent; margin: 0; padding: 10px; color: #f8fafc;">
+                          <div class="mermaid">
+                            {mermaid_code}
+                          </div>
+                        </body>
+                        </html>
+                        """
+                        if components is not None:
+                            components.html(mermaid_html, height=350, scrolling=True)
+                        else:
+                            st.code(mermaid_code, language="mermaid")
+
+                # Callers at Risk Detailed Table
+                flattened_callers = []
+                for d in detailed_list:
+                    for car in d.get("callers_at_risk", []):
+                        flattened_callers.append({
+                            "Target Entity": d.get("entity"),
+                            "Upstream Caller": car.get("qualified_name"),
+                            "File": car.get("file_path"),
+                            "Distance": f"Depth {car.get('distance')}",
+                            "Call Chain": " ➜ ".join(car.get("call_chain", [])),
+                        })
+
+                if flattened_callers:
+                    st.divider()
+                    st.markdown(f"#### 💥 Summary: {len(flattened_callers)} Upstream Caller(s) At Risk")
+                    st.dataframe(flattened_callers, use_container_width=True)
+                else:
+                    st.success("✅ **Zero upstream callers at risk.** All modified entities are self-contained or entrypoints.")
+
+            with t_details:
+                st.markdown("#### 🔍 Detailed Code Entity Impacts & Prescriptive Guidance")
+                st.caption(active_impact.get("impact_analysis", {}).get("summary", ""))
+
+                detailed_list = active_impact.get("impact_analysis", {}).get("detailed_impacts", [])
+                if detailed_list:
+                    for idx, item in enumerate(detailed_list, 1):
+                        with st.container():
+                            ent_name = item.get("entity", "")
+                            ent_file = item.get("file", "")
+                            lines = item.get("lines_affected", [0, 0])
+                            ent_type = item.get("entity_type", "function").upper()
+                            c_summary = item.get("change_summary", "")
+                            rem_guide = item.get("remediation_guidance", "")
+                            just = item.get("justification", "")
+                            snippet = item.get("diff_snippet", "")
+                            inbounds = item.get("inbound_callers", [])
+                            outbounds = item.get("outbound_calls", [])
+                            downstream = item.get("downstream_dependent_files", [])
+
+                            st.markdown(
+                                f"""
+                                <div style="background: rgba(30, 41, 59, 0.5); border-left: 4px solid #38bdf8; border-radius: 0 8px 8px 0; padding: 16px; margin-bottom: 18px; border: 1px solid rgba(255,255,255,0.06); border-left: 4px solid #38bdf8;">
+                                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                    <div style="font-size: 1.05rem; font-weight: 700; color: #f8fafc;">
+                                      <span style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; padding: 2px 7px; border-radius: 4px; font-size: 0.75rem; text-transform: uppercase; margin-right: 6px;">{ent_type}</span>
+                                      <code>{ent_name}</code>
+                                    </div>
+                                    <span style="font-size: 0.8rem; color: #94a3b8; font-family: monospace;">{ent_file} : lines {lines[0]}-{lines[1]}</span>
+                                  </div>
+                                  <div style="font-size: 0.9rem; color: #e2e8f0; margin-bottom: 10px;">
+                                    <strong>Summary:</strong> {c_summary}
+                                  </div>
+                                  <div style="background: rgba(245, 158, 11, 0.1); border: 1px solid #f59e0b; border-radius: 6px; padding: 10px 12px; margin-bottom: 10px; font-size: 0.85rem; color: #fef3c7;">
+                                    <strong>💡 Remediation:</strong> {rem_guide}
+                                  </div>
+                                  <div style="font-size: 0.82rem; color: #94a3b8; margin-bottom: 8px;">
+                                    <strong>Evidence Justification:</strong> {just}
+                                  </div>
+                                </div>
+                                """,
+                                unsafe_allow_html=True,
+                            )
+
+                            if snippet:
+                                with st.expander(f"📄 View Diff Snippet for `{ent_name}`"):
+                                    st.code(snippet, language="diff")
+
+                            c_sub1, c_sub2, c_sub3 = st.columns(3)
+                            with c_sub1:
+                                st.caption(f"**Inbound Callers ({len(inbounds)})**")
+                                if inbounds:
+                                    st.write(", ".join(f"`{c}`" for c in inbounds))
+                                else:
+                                    st.write("None")
+                            with c_sub2:
+                                st.caption(f"**Outbound Dependencies ({len(outbounds)})**")
+                                if outbounds:
+                                    st.write(", ".join(f"`{o}`" for o in outbounds))
+                                else:
+                                    st.write("None")
+                            with c_sub3:
+                                st.caption(f"**Downstream Files ({len(downstream)})**")
+                                if downstream:
+                                    st.write(", ".join(f"`{d}`" for d in downstream))
+                                else:
+                                    st.write("None")
+                else:
+                    st.info("No code symbols modified in this changeset.")
+
+            with t_plan:
+                st.markdown("#### 📋 Prioritized Actionable Remediation Plan")
+                st.caption("Step-by-step developer checklist synthesized from diff syntax alterations, broken imports, and graph call sites.")
+
+                rem_plan = active_impact.get("risk_analysis", {}).get("actionable_remediation_plan", [])
+                if rem_plan:
+                    for step in rem_plan:
+                        s_num = step.get("step_number")
+                        cat = step.get("category", "")
+                        desc = step.get("action_description", "")
+                        targets = step.get("affected_targets", [])
+
+                        cat_colors = {
+                            "Contract Changes": "#ef4444",
+                            "Missing Modules": "#f97316",
+                            "Direct Callers": "#f59e0b",
+                            "Integration Validation": "#38bdf8",
+                        }
+                        c_color = cat_colors.get(cat, "#38bdf8")
+
+                        st.markdown(
+                            f"""
+                            <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(255,255,255,0.08); border-left: 4px solid {c_color}; border-radius: 0 8px 8px 0; padding: 12px 16px; margin-bottom: 10px;">
+                              <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span style="font-weight: 700; color: #f8fafc; font-size: 0.95rem;">Step {s_num}: {cat}</span>
+                                <span style="font-size: 0.75rem; background: {c_color}22; color: {c_color}; border: 1px solid {c_color}; padding: 2px 8px; border-radius: 4px; font-weight: 600;">{cat.upper()}</span>
+                              </div>
+                              <div style="font-size: 0.88rem; color: #cbd5e1; margin-top: 6px;">{desc}</div>
+                              <div style="font-size: 0.75rem; color: #64748b; margin-top: 4px; font-family: monospace;">Targets: {', '.join(targets) if targets else 'N/A'}</div>
+                            </div>
+                            """,
+                            unsafe_allow_html=True,
+                        )
+                else:
+                    st.success("✅ No remedial actions required.")
+
+                st.divider()
+                st.markdown("#### 🧪 CI/CD Recommendations")
+                ci_recs = active_impact.get("risk_analysis", {}).get("ci_cd_recommendations", [])
+                for rec in ci_recs:
+                    st.markdown(f"- 🛡️ {rec}")
+
+                st.divider()
+                st.markdown("#### ⚠️ Key Risk Factors")
+                factors = active_impact.get("risk_analysis", {}).get("key_risk_factors", [])
+                if factors:
+                    st.dataframe(factors, use_container_width=True)
+
+            with t_json:
+                col_dl, _ = st.columns([1, 3])
+                with col_dl:
+                    st.download_button(
+                        label="📥 Download Full Impact JSON",
+                        data=json.dumps(active_impact, indent=2),
+                        file_name=f"trace_impact_analysis_{meta.get('analysis_id', 'run')[:8]}.json",
+                        mime="application/json",
+                        use_container_width=True,
+                    )
+                st.json(active_impact)
 
 
 if __name__ == "__main__":
