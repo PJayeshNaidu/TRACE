@@ -712,33 +712,44 @@ def render_colored_diff(file_diff: dict[str, Any]) -> str:
 
 
 def build_impact_graph_json(d_detail: dict[str, Any]) -> dict[str, Any]:
-    """Construct a complete, structured JSON graph representing code changes and blast radius."""
+    """Construct a complete, deduplicated structured JSON graph representing code changes and blast radius."""
     sym_diffs = d_detail.get("symbol_diffs", [])
     blast_items = d_detail.get("blast_radius", [])
     summ = d_detail.get("summary", {})
 
     nodes_dict: dict[str, dict[str, Any]] = {}
+    name_to_node_id: dict[str, str] = {}
     edges_list: list[dict[str, Any]] = []
+    seen_edges: set[tuple[str, str, str]] = set()
 
-    # 1. Add changed & breaking symbol nodes
+    # Helper to clean qualified names from Neo4j identifiers
+    def _clean_qual_name(raw_name: str) -> str:
+        if not raw_name:
+            return ""
+        # Handle format: Function::main.calculate_total::uuid
+        if "::" in raw_name:
+            parts = [p for p in raw_name.split("::") if p and not (len(p) == 36 and "-" in p)]
+            if len(parts) >= 2:
+                return parts[1]
+            return parts[0]
+        return raw_name.removeprefix("sym:").removeprefix("func:").removeprefix("class:")
+
+    # 1. Add changed & breaking symbol nodes (highest priority)
     for s in sym_diffs:
-        sid = s.get("symbol_id") or s.get("qualified_name", "")
+        qual_name = _clean_qual_name(s.get("qualified_name") or "")
+        sid = s.get("symbol_id") or f"func:{qual_name}"
         is_breaking = s.get("is_breaking", False)
         ch_kind = s.get("change_kind", "MODIFIED")
 
         category = "Breaking Change" if is_breaking else "Changed Symbol"
         status = "BREAKING" if is_breaking else ch_kind
 
-        short_name = s.get("qualified_name", sid)
-        if "::" in short_name:
-            short_name = short_name.split("::")[1]
-        elif "." in short_name:
-            short_name = short_name.split(".")[-1]
+        short_name = qual_name.split(".")[-1] if "." in qual_name else qual_name
 
         nodes_dict[sid] = {
             "id": sid,
             "label": str(short_name)[:24],
-            "qualified_name": s.get("qualified_name"),
+            "qualified_name": qual_name or s.get("qualified_name"),
             "kind": s.get("kind", "symbol"),
             "category": category,
             "status": status,
@@ -748,22 +759,37 @@ def build_impact_graph_json(d_detail: dict[str, Any]) -> dict[str, Any]:
             "old_signature": s.get("old_signature"),
             "new_signature": s.get("new_signature"),
         }
+        if qual_name:
+            name_to_node_id[qual_name] = sid
+            name_to_node_id[qual_name.lower()] = sid
+            name_to_node_id[short_name] = sid
 
-    # 2. Add affected blast radius nodes & edges
+    # 2. Add affected blast radius nodes (only if not already present) & connect edges
     for b in blast_items:
-        t_id = b.get("target_symbol_id")
-        aff_id = b.get("affected_symbol_id") or b.get("affected_qualified_name", "")
-        aff_name = b.get("affected_qualified_name") or aff_id
+        raw_aff_name = b.get("affected_qualified_name") or b.get("affected_symbol_id", "")
+        aff_name = _clean_qual_name(raw_aff_name)
+        short_aff = aff_name.split(".")[-1] if "." in aff_name else aff_name
+        rel_kind = b.get("relationship_kind", "DEPENDS_ON")
 
-        short_aff = aff_name
-        if "::" in short_aff:
-            short_aff = short_aff.split("::")[1]
-        elif "." in short_aff:
-            short_aff = short_aff.split(".")[-1]
+        # Skip non-code relationships
+        if rel_kind in ("DOCUMENTED_BY", "DEFINED_IN"):
+            continue
 
-        if aff_id not in nodes_dict:
-            nodes_dict[aff_id] = {
-                "id": aff_id,
+        # Check if node already exists as a changed/breaking symbol or previously registered dependent
+        if aff_name in name_to_node_id:
+            src_id = name_to_node_id[aff_name]
+        elif aff_name.lower() in name_to_node_id:
+            src_id = name_to_node_id[aff_name.lower()]
+        elif short_aff in name_to_node_id:
+            src_id = name_to_node_id[short_aff]
+        else:
+            # Create new Impacted Dependent node
+            aff_kind = (b.get("affected_kind") or "symbol").lower()
+            prefix = "func" if "function" in aff_kind else ("class" if "class" in aff_kind else "sym")
+            src_id = f"{prefix}:{aff_name}" if not aff_name.startswith(f"{prefix}:") else aff_name
+
+            nodes_dict[src_id] = {
+                "id": src_id,
                 "label": str(short_aff)[:24],
                 "qualified_name": aff_name,
                 "kind": b.get("affected_kind", "Component"),
@@ -775,14 +801,32 @@ def build_impact_graph_json(d_detail: dict[str, Any]) -> dict[str, Any]:
                 "old_signature": None,
                 "new_signature": None,
             }
+            name_to_node_id[aff_name] = src_id
+            name_to_node_id[aff_name.lower()] = src_id
 
-        if t_id:
-            edges_list.append({
-                "from": aff_id,
-                "to": t_id,
-                "relationship": b.get("relationship_kind", "DEPENDS_ON"),
-                "depth": b.get("depth", 1),
-            })
+        # Resolve target node ID
+        raw_t_id = b.get("target_symbol_id", "")
+        clean_t_name = _clean_qual_name(raw_t_id)
+        if raw_t_id in nodes_dict:
+            tgt_id = raw_t_id
+        elif clean_t_name in name_to_node_id:
+            tgt_id = name_to_node_id[clean_t_name]
+        elif clean_t_name.split(".")[-1] in name_to_node_id:
+            tgt_id = name_to_node_id[clean_t_name.split(".")[-1]]
+        else:
+            tgt_id = raw_t_id
+
+        # Skip self-loops or duplicate edges
+        if src_id and tgt_id and src_id != tgt_id:
+            edge_key = (src_id, tgt_id, rel_kind)
+            if edge_key not in seen_edges:
+                seen_edges.add(edge_key)
+                edges_list.append({
+                    "from": src_id,
+                    "to": tgt_id,
+                    "relationship": rel_kind,
+                    "depth": b.get("depth", 1),
+                })
 
     return {
         "comparison_metadata": {
@@ -1457,14 +1501,19 @@ def run_app() -> None:
         st.subheader("⚡ Version & Change Impact Analyzer (F04)")
         st.caption("Compare Git branches, commits, or pull request revisions to detect code symbol deltas, breaking changes, and blast radius.")
 
-        # Fetch branches from backend
+        # Fetch branches from backend with refresh capability
+        col_b1, col_b2 = st.columns([5, 1])
+        with col_b2:
+            st.write("")
+            refresh_branches = st.button("🔄 Sync Git", help="Fetch latest branches from Git remote")
+        
         b_code, b_data = make_api_request(f"{api_url}/repositories/{selected_repo_id}/branches")
         branches_list = b_data.get("branches", ["main"]) if b_code == 200 and b_data else ["main"]
         default_branch = b_data.get("default_branch", "main") if b_code == 200 and b_data else "main"
 
         diff_mode = st.radio(
             "Comparison Mode",
-            ["🌿 Branch vs Branch", "⏱️ Quick Diff (HEAD~1 vs HEAD)", "🎯 Custom Commit Range"],
+            ["🌿 Branch vs Branch", "⏱️ Quick 2-Commit Diff (Branch~1 vs Branch)", "🎯 Custom Commit Range"],
             horizontal=True,
         )
 
@@ -1475,21 +1524,23 @@ def run_app() -> None:
                 base_branch = st.selectbox("Base Branch (e.g. main/production)", options=branches_list, index=0)
             with d_col2:
                 target_idx = 1 if len(branches_list) > 1 else 0
-                target_branch = st.selectbox("Target Branch (e.g. development/feature)", options=branches_list, index=target_idx)
+                target_branch = st.selectbox("Target Branch (e.g. feature/bugfix)", options=branches_list, index=target_idx)
             base_ref_val = base_branch
             target_ref_val = target_branch
-        elif diff_mode == "⏱️ Quick Diff (HEAD~1 vs HEAD)":
+        elif diff_mode == "⏱️ Quick 2-Commit Diff (Branch~1 vs Branch)":
             with d_col1:
-                st.text_input("Base Revision", value="HEAD~1", disabled=True)
+                def_idx = branches_list.index(default_branch) if default_branch in branches_list else 0
+                quick_branch = st.selectbox("Select Branch to Diff (Last 2 Commits)", options=branches_list, index=def_idx)
             with d_col2:
-                st.text_input("Target Revision", value="HEAD", disabled=True)
-            base_ref_val = "HEAD~1"
-            target_ref_val = "HEAD"
+                st.text_input("Base Revision", value=f"{quick_branch}~1", disabled=True)
+                st.text_input("Target Revision", value=f"{quick_branch}", disabled=True)
+            base_ref_val = f"{quick_branch}~1"
+            target_ref_val = quick_branch
         else:
             with d_col1:
-                base_ref_val = st.text_input("Base Commit SHA / Tag", value="HEAD~1")
+                base_ref_val = st.text_input("Base Commit SHA / Branch / Tag", value="HEAD~1")
             with d_col2:
-                target_ref_val = st.text_input("Target Commit SHA / Tag", value="HEAD")
+                target_ref_val = st.text_input("Target Commit SHA / Branch / Tag", value="HEAD")
 
         with d_col3:
             st.write("")

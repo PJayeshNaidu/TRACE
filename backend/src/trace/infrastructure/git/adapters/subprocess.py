@@ -345,6 +345,15 @@ class SubprocessGitProvider:
         if not path.exists():
             return []
 
+        # Attempt to fetch latest remote references if remotes exist
+        try:
+            await self._run_command(
+                ["-C", str(path), "fetch", "--all", "--prune"],
+                timeout_seconds=min(timeout_seconds, 8.0),
+            )
+        except Exception:
+            pass
+
         args = ["-C", str(path), "branch", "-a", "--format=%(refname:short)"]
         rc, stdout, _ = await self._run_command(args, timeout_seconds=timeout_seconds)
         if rc != 0 or not stdout.strip():

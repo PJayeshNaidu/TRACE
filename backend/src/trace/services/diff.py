@@ -405,19 +405,30 @@ class VersionChangeService:
                     for rec in records:
                         t_name = rec.get("target_name") or rec.get("upstream_name")
                         matched_sym = qual_names.get(t_name) or short_names.get(t_name)
-                        t_id = matched_sym.symbol_id if matched_sym else rec.get("target_id", "")
-                        u_id = rec.get("upstream_id") or rec.get("upstream_name", "")
-                        pair_key = (str(t_id), str(u_id))
+                        t_id = matched_sym.symbol_id if matched_sym else f"sym:{t_name}"
+                        
+                        u_name = rec.get("upstream_name") or rec.get("upstream_short_name", "Unknown")
+                        # Clean up ID prefix
+                        u_kind = (rec.get("upstream_kind") or "symbol").lower()
+                        prefix = "func" if "function" in u_kind else ("class" if "class" in u_kind else "sym")
+                        u_id = f"{prefix}:{u_name}"
+                        rel_type = rec.get("rel_type", "DEPENDS_ON")
+
+                        # Skip self loops and non-dependency relationships
+                        if u_name == t_name or rel_type in ("DOCUMENTED_BY", "DEFINED_IN"):
+                            continue
+
+                        pair_key = (u_name, t_name, rel_type)
                         if pair_key not in seen_keys:
                             seen_keys.add(pair_key)
                             blast_items.append(
                                 BlastRadiusItem(
                                     target_symbol_id=t_id,
-                                    affected_symbol_id=f"sym:{u_id}",
-                                    affected_qualified_name=rec.get("upstream_name") or rec.get("upstream_short_name", "Unknown"),
+                                    affected_symbol_id=u_id,
+                                    affected_qualified_name=u_name,
                                     affected_kind=rec.get("upstream_kind", "Component"),
                                     affected_file_path=rec.get("upstream_file", ""),
-                                    relationship_kind=rec.get("rel_type", "DEPENDS_ON"),
+                                    relationship_kind=rel_type,
                                     depth=1,
                                 )
                             )
@@ -429,6 +440,11 @@ class VersionChangeService:
             if not analysis:
                 continue
             for rel in analysis.relationships:
+                rel_type = rel.relationship_type.value if hasattr(rel.relationship_type, "value") else str(rel.relationship_type)
+                # Filter out documentation or non-structural relationships
+                if rel_type in ("DOCUMENTED_BY", "DEFINED_IN"):
+                    continue
+
                 t_ident = rel.target_identifier
                 matched_sym = qual_names.get(t_ident) or short_names.get(t_ident)
                 if not matched_sym:
@@ -438,17 +454,26 @@ class VersionChangeService:
                             break
 
                 if matched_sym:
-                    pair_key = (matched_sym.symbol_id, rel.source_identifier)
+                    u_name = rel.source_identifier
+                    t_name = matched_sym.qualified_name
+
+                    # Skip self loops
+                    if u_name == t_name:
+                        continue
+
+                    pair_key = (u_name, t_name, rel_type)
                     if pair_key not in seen_keys:
                         seen_keys.add(pair_key)
+                        s_type = (rel.source_type.value if hasattr(rel.source_type, "value") else str(rel.source_type)).lower()
+                        prefix = "func" if "function" in s_type else ("class" if "class" in s_type else "sym")
                         blast_items.append(
                             BlastRadiusItem(
                                 target_symbol_id=matched_sym.symbol_id,
-                                affected_symbol_id=f"sym:{rel.source_identifier}",
-                                affected_qualified_name=rel.source_identifier,
+                                affected_symbol_id=f"{prefix}:{u_name}",
+                                affected_qualified_name=u_name,
                                 affected_kind=rel.source_type.value if hasattr(rel.source_type, "value") else str(rel.source_type),
                                 affected_file_path=rel.evidence_location.file_path if rel.evidence_location else "",
-                                relationship_kind=rel.relationship_type.value if hasattr(rel.relationship_type, "value") else str(rel.relationship_type),
+                                relationship_kind=rel_type,
                                 depth=1,
                             )
                         )
