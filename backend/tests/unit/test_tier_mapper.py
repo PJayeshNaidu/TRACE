@@ -14,8 +14,7 @@ def test_classify_endpoints_and_routes() -> None:
         == TaskCategory.CONTRACT_API
     )
     assert (
-        TierMapper.classify("get_users", "function", "src/v1/users.py")
-        == TaskCategory.CONTRACT_API
+        TierMapper.classify("get_users", "function", "src/v1/users.py") == TaskCategory.CONTRACT_API
     )
 
 
@@ -74,8 +73,7 @@ def test_classify_docs_and_configs() -> None:
         == TaskCategory.DOCUMENTATION_CONFIG
     )
     assert (
-        TierMapper.classify("dockerfile", "file", "Dockerfile")
-        == TaskCategory.DOCUMENTATION_CONFIG
+        TierMapper.classify("dockerfile", "file", "Dockerfile") == TaskCategory.DOCUMENTATION_CONFIG
     )
 
 
@@ -86,5 +84,72 @@ def test_classify_core_logic_fallback() -> None:
     )
     assert (
         TierMapper.classify("OrderDomain", "class", "src/domain/order.py")
+        == TaskCategory.CORE_LOGIC
+    )
+
+
+def test_classify_backend_app_py_as_core_logic() -> None:
+    # Backend application entrypoints and functions in app.py must NOT be classified as Client/UI
+    assert (
+        TierMapper.classify("request_context", "function", "src/flask/app.py")
+        == TaskCategory.CORE_LOGIC
+    )
+    assert (
+        TierMapper.classify("test_request_context", "function", "src/flask/app.py")
+        == TaskCategory.CORE_LOGIC
+    )
+    assert (
+        TierMapper.classify("create_app", "function", "backend/app.py") == TaskCategory.CORE_LOGIC
+    )
+
+
+def test_classify_documentation_diff() -> None:
+    # 1. Real Flask docstring Sphinx role diff
+    flask_doc_diff = """
+- :data:`.session`, :data:`g:`, and :data:`.current_app` become available.
++ :data:`.session`, :data:`g`, and :data:`.current_app` become available.
+"""
+    assert TierMapper.is_documentation_diff(flask_doc_diff) is True
+    assert (
+        TierMapper.classify(
+            "test_request_context",
+            "function",
+            "src/flask/app.py",
+            diff_snippet=flask_doc_diff,
+        )
+        == TaskCategory.DOCUMENTATION_CONFIG
+    )
+
+    # 2. Comment-only diff
+    comment_diff = """
+- # Old note on business logic
++ # Updated note on business logic
+"""
+    assert TierMapper.is_documentation_diff(comment_diff) is True
+    assert (
+        TierMapper.classify(
+            "calculate_tax",
+            "function",
+            "src/services/tax.py",
+            diff_snippet=comment_diff,
+        )
+        == TaskCategory.DOCUMENTATION_CONFIG
+    )
+
+    # 3. Code diff with statement logic must NOT be classified as doc
+    code_diff = """
+- def calculate_tax(amount):
+-     return amount * 0.10
++ def calculate_tax(amount, tax_rate):
++     return amount * tax_rate
+"""
+    assert TierMapper.is_documentation_diff(code_diff) is False
+    assert (
+        TierMapper.classify(
+            "calculate_tax",
+            "function",
+            "src/services/tax.py",
+            diff_snippet=code_diff,
+        )
         == TaskCategory.CORE_LOGIC
     )

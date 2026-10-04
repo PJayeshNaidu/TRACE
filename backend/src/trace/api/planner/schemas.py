@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -58,8 +59,38 @@ class UpgradeTaskResponse(BaseModel):
     parallel_group_id: int = 1
     notes: str | None = None
     evidence: TaskEvidenceSchema | None = None
+    actionability: str = "UPGRADE"
+    action_type: str = "REQUIRED_CHANGE"
+    tier_name: str = ""
+    tier_meaning: str = ""
+    change_significance: str | None = None
+    ai_confidence: str | None = None
+    ai_review: dict[str, Any] | None = None
     created_at: datetime
     updated_at: datetime
+
+
+class InformationalChangeSchema(BaseModel):
+    """Representation of non-behavioral documentation/comment/config changes."""
+
+    component: str
+    file_path: str
+    category: str
+    reason: str
+    diff_snippet: str = ""
+    actionability: str = "INFORMATIONAL"
+
+
+class AIPlanReviewSchema(BaseModel):
+    """Comprehensive whole-plan AI architectural peer review."""
+
+    sequence_valid: bool = True
+    confidence: float | str = 1.0
+    warnings: list[str] = Field(default_factory=list)
+    unnecessary_tasks: list[dict[str, Any]] = Field(default_factory=list)
+    missing_task_suggestions: list[dict[str, Any]] = Field(default_factory=list)
+    test_recommendations: list[dict[str, Any]] = Field(default_factory=list)
+    actionability_reviews: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class SummaryMetricsSchema(BaseModel):
@@ -86,9 +117,16 @@ class UpgradePlanResponse(BaseModel):
     risk_level: str
     status: str
     reasoning_mode: str
+    change_significance: str = "MODERATE_CHANGE"
+    significance_reasoning: str = ""
+    recommended_action: str = ""
+    order_rationale: str = ""
+    optional_suggestions: list[str] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
     summary_metrics: SummaryMetricsSchema
+    informational_changes: list[InformationalChangeSchema] = Field(default_factory=list)
+    ai_plan_review: AIPlanReviewSchema | dict[str, Any] | None = None
     tasks: list[UpgradeTaskResponse] = Field(default_factory=list)
 
 

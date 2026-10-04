@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from trace.analysis.planner.tier_mapper import TierMapper
-from trace.domain.plan import TaskCategory
+from trace.domain.plan import TaskActionType, TaskCategory
 from typing import Any
 
 
@@ -19,6 +19,7 @@ class SequencedNode:
     dependencies: list[str] = field(default_factory=list)
     is_circular: bool = False
     parallel_group_id: int = 1
+    action_type: TaskActionType = TaskActionType.REQUIRED_CHANGE
 
 
 class DagSequencer:
@@ -58,6 +59,9 @@ class DagSequencer:
                     entity_name=comp,
                     entity_type=n.get("component_type", "function"),
                     file_path=n.get("file", ""),
+                    diff_snippet=n.get("raw_impact", {}).get("diff_snippet", "")
+                    if isinstance(n.get("raw_impact"), dict)
+                    else "",
                 )
             component_to_category[comp] = cat
 
@@ -162,6 +166,8 @@ class DagSequencer:
         result: list[SequencedNode] = []
         for step, comp in enumerate(ordered_components, 1):
             dependencies = sorted(rev_adj[comp])
+            n_data = component_to_node.get(comp, {})
+            action_type = n_data.get("action_type", TaskActionType.REQUIRED_CHANGE)
             result.append(
                 SequencedNode(
                     component=comp,
@@ -170,6 +176,7 @@ class DagSequencer:
                     dependencies=dependencies,
                     is_circular=(comp in circular_nodes),
                     parallel_group_id=parallel_groups.get(comp, 1),
+                    action_type=action_type,
                 )
             )
 

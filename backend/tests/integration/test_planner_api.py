@@ -521,3 +521,263 @@ async def test_empty_impact_plan_generation(test_env):
     assert data["status"] == "COMPLETED"
     assert data["summary_metrics"]["total_tasks"] == 0
     assert len(data["tasks"]) == 0
+
+
+@pytest.mark.asyncio
+async def test_documentation_only_with_callers_produces_no_caller_tasks(test_env):
+    """US1 quality fix: Documentation-only modified function with callers produces only doc task."""
+    client: AsyncClient = test_env["client"]
+    repo_id = test_env["repo_id"]
+    impact_svc = test_env["impact_service"]
+
+    analysis_id = uuid.uuid4()
+    flask_doc_diff = """
+- :data:`g:, and
++ :data:`g`, and
+"""
+    # Function in app.py has 3 callers, but diff is purely docstring syntax
+    callers = (
+        CallerAtRisk(
+            qualified_name="Flask.__call__",
+            file_path="src/flask/app.py",
+            distance=1,
+            call_chain=("Flask.__call__", "request_context"),
+        ),
+        CallerAtRisk(
+            qualified_name="Flask.test_request_context",
+            file_path="src/flask/app.py",
+            distance=1,
+            call_chain=("Flask.test_request_context", "request_context"),
+        ),
+        CallerAtRisk(
+            qualified_name="Flask.wsgi_app",
+            file_path="src/flask/app.py",
+            distance=1,
+            call_chain=("Flask.wsgi_app", "request_context"),
+        ),
+    )
+    detailed = DetailedImpact(
+        file="src/flask/app.py",
+        entity="request_context",
+        entity_type="function",
+        lines_affected=(180, 185),
+        diff_snippet=flask_doc_diff,
+        change_summary="Documentation update in docstring.",
+        remediation_guidance="No code remediation necessary.",
+        justification="Documentation-only change.",
+        outbound_calls=(),
+        inbound_callers=("Flask.__call__", "Flask.test_request_context", "Flask.wsgi_app"),
+        callers_at_risk=callers,
+        downstream_dependent_files=(),
+    )
+    doc_aggregate = ImpactAnalysisAggregate(
+        metadata=AnalysisMetadataPayload(
+            analysis_id=analysis_id,
+            repository="pallets/flask",
+            base_commit="HEAD~1",
+            current_commit="HEAD",
+            reasoning_mode=ReasoningMode.HEURISTIC,
+            total_changed_entities=1,
+            total_deleted_files=0,
+            total_impacted_downstream_files=0,
+            total_callers_at_risk=3,
+        ),
+        summary="Documentation fix in request_context",
+        detailed_impacts=(detailed,),
+        dependency_graph=DependencyGraphPayload(nodes=(), edges=(), mermaid=""),
+        risk_analysis=RiskAnalysisPayload(
+            risk_level=RiskLevel.LOW,
+            key_risk_factors=(),
+            ci_cd_recommendations=(),
+            actionable_remediation_plan=(),
+        ),
+        created_at=datetime.now(UTC),
+    )
+    impact_svc.get_analysis = AsyncMock(return_value=doc_aggregate)
+
+    resp = await client.post(
+        "/api/v1/upgrade-plans/generate",
+        json={
+            "repository_id": str(repo_id),
+            "impact_analysis_id": str(analysis_id),
+            "title": "Flask Docstring Fix Plan",
+        },
+    )
+    assert resp.status_code == 201
+    data = resp.json()
+
+    # Crucial assertion: Purely docstring typo must NOT create upgrade tasks or caller tasks
+    assert data["summary_metrics"]["total_tasks"] == 0
+    assert len(data["tasks"]) == 0
+    assert len(data["informational_changes"]) == 1
+
+    info_change = data["informational_changes"][0]
+    assert info_change["component"] == "src/flask/app.py::request_context"
+    assert info_change["category"] == "DOCUMENTATION_CONFIG"
+    assert "Documentation or comment-only change detected" in info_change["reason"]
+    assert "No behavioral or contract upgrade required" in info_change["reason"]
+    assert info_change["actionability"] in ("IGNORE", "INFORMATIONAL")
+
+
+@pytest.mark.asyncio
+async def test_genuine_behavioral_change_generates_direct_caller_tasks(test_env):
+    """Verify that a genuine behavioral change does propagate direct caller tasks."""
+    client: AsyncClient = test_env["client"]
+    repo_id = test_env["repo_id"]
+    impact_svc = test_env["impact_service"]
+
+    analysis_id = uuid.uuid4()
+    code_diff = """
+- def validate_token(t):
+-     return t is not None
++ def validate_token(t, secret_key):
++     return hmac_verify(t, secret_key)
+"""
+    caller = CallerAtRisk(
+        qualified_name="login",
+        file_path="src/api/login.py",
+        distance=1,
+        call_chain=("login", "validate_token"),
+    )
+    detailed = DetailedImpact(
+        file="src/core/auth.py",
+        entity="validate_token",
+        entity_type="function",
+        lines_affected=(10, 15),
+        diff_snippet=code_diff,
+        change_summary="Signature and authentication logic altered.",
+        remediation_guidance="Pass secret_key from caller.",
+        justification="Security fix.",
+        outbound_calls=(),
+        inbound_callers=("login",),
+        callers_at_risk=(caller,),
+        downstream_dependent_files=(),
+    )
+    code_aggregate = ImpactAnalysisAggregate(
+        metadata=AnalysisMetadataPayload(
+            analysis_id=analysis_id,
+            repository="my/app",
+            base_commit="HEAD~1",
+            current_commit="HEAD",
+            reasoning_mode=ReasoningMode.HEURISTIC,
+            total_changed_entities=1,
+            total_deleted_files=0,
+            total_impacted_downstream_files=0,
+            total_callers_at_risk=1,
+        ),
+        summary="Auth security update",
+        detailed_impacts=(detailed,),
+        dependency_graph=DependencyGraphPayload(nodes=(), edges=(), mermaid=""),
+        risk_analysis=RiskAnalysisPayload(
+            risk_level=RiskLevel.HIGH,
+            key_risk_factors=(),
+            ci_cd_recommendations=(),
+            actionable_remediation_plan=(),
+        ),
+        created_at=datetime.now(UTC),
+    )
+    impact_svc.get_analysis = AsyncMock(return_value=code_aggregate)
+
+    resp = await client.post(
+        "/api/v1/upgrade-plans/generate",
+        json={
+            "repository_id": str(repo_id),
+            "impact_analysis_id": str(analysis_id),
+            "title": "Auth Security Plan",
+        },
+    )
+    assert resp.status_code == 201
+    data = resp.json()
+
+    # Both modified entity and direct caller must be generated
+    assert data["summary_metrics"]["total_tasks"] == 2
+    tasks = data["tasks"]
+    auth_task = next(t for t in tasks if "validate_token" in t["component"])
+    caller_task = next(t for t in tasks if "login" in t["component"])
+
+    assert auth_task["step_number"] == 1
+    assert caller_task["step_number"] == 2
+    assert "Direct caller" in caller_task["reason"]
+    assert (
+        "Audit direct call site of 'src/core/auth.py::validate_token'"
+        in caller_task["expected_changes"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_genuine_behavioral_change_generates_transitive_caller_tasks(test_env):
+    """Verify that a genuine behavioral change propagates transitive caller tasks."""
+    client: AsyncClient = test_env["client"]
+    repo_id = test_env["repo_id"]
+    impact_svc = test_env["impact_service"]
+
+    analysis_id = uuid.uuid4()
+    code_diff = """
+- def connect(url):
++ def connect(url, timeout=30):
+"""
+    transitive_caller = CallerAtRisk(
+        qualified_name="checkout",
+        file_path="src/handlers/checkout.py",
+        distance=2,
+        call_chain=("checkout", "create_order", "connect"),
+    )
+    detailed = DetailedImpact(
+        file="src/core/db.py",
+        entity="connect",
+        entity_type="function",
+        lines_affected=(5, 10),
+        diff_snippet=code_diff,
+        change_summary="Database connection signature updated.",
+        remediation_guidance="Audit connection parameters.",
+        justification="Connection timeout support.",
+        outbound_calls=(),
+        inbound_callers=(),
+        callers_at_risk=(transitive_caller,),
+        downstream_dependent_files=(),
+    )
+    code_aggregate = ImpactAnalysisAggregate(
+        metadata=AnalysisMetadataPayload(
+            analysis_id=analysis_id,
+            repository="my/app",
+            base_commit="HEAD~1",
+            current_commit="HEAD",
+            reasoning_mode=ReasoningMode.HEURISTIC,
+            total_changed_entities=1,
+            total_deleted_files=0,
+            total_impacted_downstream_files=0,
+            total_callers_at_risk=1,
+        ),
+        summary="DB timeout update",
+        detailed_impacts=(detailed,),
+        dependency_graph=DependencyGraphPayload(nodes=(), edges=(), mermaid=""),
+        risk_analysis=RiskAnalysisPayload(
+            risk_level=RiskLevel.MEDIUM,
+            key_risk_factors=(),
+            ci_cd_recommendations=(),
+            actionable_remediation_plan=(),
+        ),
+        created_at=datetime.now(UTC),
+    )
+    impact_svc.get_analysis = AsyncMock(return_value=code_aggregate)
+
+    resp = await client.post(
+        "/api/v1/upgrade-plans/generate",
+        json={
+            "repository_id": str(repo_id),
+            "impact_analysis_id": str(analysis_id),
+            "title": "DB Timeout Plan",
+        },
+    )
+    assert resp.status_code == 201
+    data = resp.json()
+
+    # Both modified entity and transitive caller must be generated
+    assert data["summary_metrics"]["total_tasks"] == 2
+    tasks = data["tasks"]
+    transitive_task = next(t for t in tasks if "checkout" in t["component"])
+    assert "Transitive caller at depth 2" in transitive_task["reason"]
+    assert (
+        "Verify indirect integration with 'src/core/db.py::connect'"
+        in transitive_task["expected_changes"]
+    )

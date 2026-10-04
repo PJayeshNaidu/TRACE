@@ -8,6 +8,7 @@ from trace.api.health.router import get_db_gateway
 from trace.api.impact.router import get_impact_service
 from trace.api.planner.schemas import (
     GenerateUpgradePlanRequest,
+    InformationalChangeSchema,
     SummaryMetricsSchema,
     TaskEvidenceSchema,
     UpdateTaskStatusRequest,
@@ -82,6 +83,25 @@ def _serialize_task(task: UpgradeTask) -> UpgradeTaskResponse:
         )
         if task.evidence
         else None,
+        actionability=str(
+            task.actionability.value if hasattr(task.actionability, "value") else task.actionability
+        ),
+        action_type=str(
+            task.action_type.value if hasattr(task.action_type, "value") else task.action_type
+        ),
+        tier_name=task.tier_name,
+        tier_meaning=task.tier_meaning,
+        change_significance=(
+            str(
+                task.change_significance.value
+                if hasattr(task.change_significance, "value")
+                else task.change_significance
+            )
+            if task.change_significance
+            else None
+        ),
+        ai_confidence=task.ai_confidence,
+        ai_review=task.ai_review,
         created_at=task.created_at,
         updated_at=task.updated_at,
     )
@@ -98,6 +118,15 @@ def _serialize_plan(plan: UpgradePlan) -> UpgradePlanResponse:
         risk_level=plan.risk_level,
         status=plan.status,
         reasoning_mode=plan.reasoning_mode,
+        change_significance=str(
+            plan.change_significance.value
+            if hasattr(plan.change_significance, "value")
+            else plan.change_significance
+        ),
+        significance_reasoning=plan.significance_reasoning,
+        recommended_action=plan.recommended_action,
+        order_rationale=plan.order_rationale,
+        optional_suggestions=list(plan.optional_suggestions),
         created_at=plan.created_at,
         updated_at=plan.updated_at,
         summary_metrics=SummaryMetricsSchema(
@@ -109,6 +138,22 @@ def _serialize_plan(plan: UpgradePlan) -> UpgradePlanResponse:
             skipped_tasks=plan.skipped_tasks,
             progress_percentage=plan.progress_percentage,
         ),
+        informational_changes=[
+            InformationalChangeSchema(
+                component=ic.component,
+                file_path=ic.file_path,
+                category=str(ic.category),
+                reason=ic.reason,
+                diff_snippet=ic.diff_snippet,
+                actionability=str(
+                    ic.actionability.value
+                    if hasattr(ic.actionability, "value")
+                    else ic.actionability
+                ),
+            )
+            for ic in plan.informational_changes
+        ],
+        ai_plan_review=plan.ai_plan_review,
         tasks=[_serialize_task(t) for t in plan.tasks],
     )
 

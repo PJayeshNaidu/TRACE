@@ -1390,10 +1390,11 @@ def run_app() -> None:
         )
 
     # Observatory Top-Level Navigation
-    tab_intelligence, tab_version_diff, tab_impact_engine = st.tabs([
+    tab_intelligence, tab_version_diff, tab_impact_engine, tab_upgrade_planner = st.tabs([
         "🔬 Code Intelligence & Dependency Graph (F02/F03)",
         "⚡ Version & Change Analyzer (F04)",
         "🎯 Impact & Risk Analysis Engine (F05)",
+        "📋 Upgrade Planner (F07)",
     ])
 
     with tab_intelligence:
@@ -2153,6 +2154,459 @@ def run_app() -> None:
                         use_container_width=True,
                     )
                 st.json(active_impact)
+
+    with tab_upgrade_planner:
+        st.subheader("📋 F07: Actionable Upgrade Planner & Dependency Orchestration")
+        st.caption("Transforms impact analysis and risk assessments into an actionable, dependency-ordered engineering upgrade plan.")
+
+        # Historical Plans for Repository
+        hist_code, hist_res = make_api_request(f"{api_url}/repositories/{selected_repo_id}/upgrade-plans")
+        existing_plans: list[dict[str, Any]] = hist_res.get("items", []) if (hist_code == 200 and hist_res) else []
+
+        col_p1, col_p2 = st.columns([2, 1])
+        with col_p1:
+            st.markdown("##### 🚀 Plan Generation & Selection")
+        with col_p2:
+            if existing_plans:
+                plan_options = {f"{p['title']} ({p['status']} - {p['progress_percentage']}%)": p["id"] for p in existing_plans}
+                selected_plan_label = st.selectbox("Load Existing Plan", options=["-- New Plan --"] + list(plan_options.keys()))
+                if selected_plan_label != "-- New Plan --":
+                    st.session_state["active_plan_id"] = plan_options[selected_plan_label]
+
+        # Generator form
+        with st.expander("⚙️ Generate New Upgrade Plan", expanded=("active_plan_id" not in st.session_state)):
+            c_g1, c_g2, c_g3 = st.columns([2, 2, 2])
+            with c_g1:
+                p_base = st.text_input("Base Revision", value="HEAD~1", key="f07_base")
+            with c_g2:
+                p_target = st.text_input("Target Revision", value="HEAD", key="f07_target")
+            with c_g3:
+                p_title = st.text_input("Plan Title (Optional)", value=f"Upgrade Plan: {p_base} ➜ {p_target}", key="f07_title")
+
+            # Check if active impact analysis from F05 exists
+            active_impact_data = st.session_state.get("active_impact_data")
+            use_active_impact = False
+            active_impact_id = None
+            if active_impact_data:
+                active_impact_id = active_impact_data.get("analysis_metadata", {}).get("analysis_id")
+                if active_impact_id:
+                    use_active_impact = st.checkbox(
+                        f"Link to Active Impact Analysis (`{str(active_impact_id)[:8]}...`)",
+                        value=True,
+                        help="Reuse already computed AST diffs, callers at risk, and blast radius from F05.",
+                    )
+
+            gen_btn = st.button("🔨 Generate Upgrade Plan", type="primary", use_container_width=True)
+
+            if gen_btn:
+                with st.spinner("Sequencing task dependency DAG, running Tarjan SCC cycle detection, and classifying architectural tiers..."):
+                    gen_payload = {
+                        "repository_id": selected_repo_id,
+                        "impact_analysis_id": active_impact_id if use_active_impact else None,
+                        "base_ref": p_base.strip() or "HEAD~1",
+                        "target_ref": p_target.strip() or "HEAD",
+                        "title": p_title.strip() or None,
+                        "llm_config": {
+                            "enabled": bool(enable_ai and openrouter_key.strip()),
+                            "api_key": openrouter_key.strip() if enable_ai else None,
+                            "model": openrouter_model if enable_ai else "mistralai/mistral-7b-instruct:free",
+                        },
+                    }
+                    g_code, g_res = make_api_request(
+                        f"{api_url}/upgrade-plans/generate",
+                        method="POST",
+                        payload=gen_payload,
+                        timeout=120.0,
+                    )
+                    if g_code in (200, 201) and g_res:
+                        st.session_state["active_plan_id"] = g_res["id"]
+                        st.success(f"Upgrade Plan generated successfully! Plan ID: `{g_res['id']}`")
+                        st.rerun()
+                    else:
+                        st.error(f"Plan generation failed ({g_code}): {g_res}")
+
+        # Active Plan Inspector & Task Lifecycle
+        curr_plan_id = st.session_state.get("active_plan_id")
+        if curr_plan_id:
+            plan_code, plan_data = make_api_request(f"{api_url}/upgrade-plans/{curr_plan_id}")
+            if plan_code == 200 and plan_data:
+                st.divider()
+
+                p_status = plan_data.get("status", "DRAFT")
+                p_risk = plan_data.get("risk_level", "LOW")
+                metrics = plan_data.get("summary_metrics", {})
+                pct = metrics.get("progress_percentage", 0.0)
+
+                p_significance = plan_data.get("change_significance", "MODERATE_CHANGE")
+                p_reasoning = plan_data.get("significance_reasoning", "")
+                p_recommended_action = plan_data.get("recommended_action", "")
+                p_order_rationale = plan_data.get("order_rationale", "")
+                p_suggestions = plan_data.get("optional_suggestions", [])
+
+                sig_palette = {
+                    "MAJOR_CHANGE": {"border": "#ef4444", "bg": "rgba(239, 68, 68, 0.12)", "text": "#fca5a5", "label": "Major Change"},
+                    "MODERATE_CHANGE": {"border": "#f59e0b", "bg": "rgba(245, 158, 11, 0.12)", "text": "#fde68a", "label": "Moderate Change"},
+                    "MINOR_CHANGE": {"border": "#3b82f6", "bg": "rgba(59, 130, 246, 0.12)", "text": "#93c5fd", "label": "Minor Change"},
+                    "NO_ACTION_REQUIRED": {"border": "#64748b", "bg": "rgba(100, 116, 139, 0.12)", "text": "#cbd5e1", "label": "No Action Required"},
+                }
+                sig_meta = sig_palette.get(p_significance, sig_palette["MODERATE_CHANGE"])
+
+                risk_colors = {
+                    "CRITICAL": "#ef4444",
+                    "HIGH": "#f97316",
+                    "MEDIUM": "#f59e0b",
+                    "LOW": "#10b981",
+                }
+                r_color = risk_colors.get(p_risk, "#38bdf8")
+
+                status_colors = {
+                    "COMPLETED": "#10b981",
+                    "IN_PROGRESS": "#38bdf8",
+                    "DRAFT": "#94a3b8",
+                    "CANCELLED": "#64748b",
+                }
+                s_color = status_colors.get(p_status, "#94a3b8")
+
+                # 1. UPGRADE ASSESSMENT CARD
+                st.markdown(
+                    f"""
+                    <div style="background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(255, 255, 255, 0.08); border-top: 4px solid {sig_meta['border']}; border-radius: 10px; padding: 20px; margin-bottom: 20px;">
+                      <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px;">
+                        <div>
+                          <div style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1.2px; color: #94a3b8; font-weight: 600;">Upgrade Assessment</div>
+                          <h2 style="margin: 4px 0 6px 0; color: #f8fafc; font-size: 1.6rem; font-weight: 700;">{plan_data.get('title', 'Upgrade Plan')}</h2>
+                          <div style="font-size: 0.82rem; color: #94a3b8;">
+                            Revisions: <code style="color: #cbd5e1;">{plan_data.get('base_commit', '')[:7]}</code> ➜ <code style="color: #cbd5e1;">{plan_data.get('target_commit', '')[:7]}</code>
+                            &bull; Mode: <strong style="color: #e2e8f0;">{plan_data.get('reasoning_mode', 'HEURISTIC')}</strong>
+                          </div>
+                        </div>
+                        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                          <div style="background: {sig_meta['bg']}; border: 1px solid {sig_meta['border']}; border-radius: 6px; padding: 6px 12px; text-align: center;">
+                            <div style="font-size: 0.95rem; font-weight: 700; color: {sig_meta['text']};">{sig_meta['label']}</div>
+                            <div style="font-size: 0.65rem; text-transform: uppercase; color: #94a3b8; font-weight: 600;">Significance</div>
+                          </div>
+                          <div style="background: {r_color}18; border: 1px solid {r_color}; border-radius: 6px; padding: 6px 12px; text-align: center;">
+                            <div style="font-size: 0.95rem; font-weight: 700; color: {r_color};">{p_risk}</div>
+                            <div style="font-size: 0.65rem; text-transform: uppercase; color: #94a3b8; font-weight: 600;">Risk Rating</div>
+                          </div>
+                          <div style="background: {s_color}18; border: 1px solid {s_color}; border-radius: 6px; padding: 6px 12px; text-align: center;">
+                            <div style="font-size: 0.95rem; font-weight: 700; color: {s_color};">{p_status}</div>
+                            <div style="font-size: 0.65rem; text-transform: uppercase; color: #94a3b8; font-weight: 600;">Status</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+                # Recommended Action Banner
+                if p_significance in ("MINOR_CHANGE", "NO_ACTION_REQUIRED"):
+                    st.info(
+                        f"**Recommended Action:** {p_recommended_action or 'No major upgrade work required. The revision contains documentation-only changes with no executable behavior or API contract changes.'}"
+                    )
+                else:
+                    st.success(
+                        f"**Recommended Action:** {p_recommended_action or 'A coordinated upgrade is recommended.'}"
+                    )
+
+                if p_reasoning:
+                    st.markdown(f"**Architectural Reasoning:** {p_reasoning}")
+
+                if p_order_rationale:
+                    with st.expander("Why this order?", expanded=True):
+                        st.markdown(p_order_rationale)
+
+                # AI Plan Review (if available)
+                ai_review = plan_data.get("ai_plan_review")
+                if ai_review:
+                    with st.expander("Senior Architect Review", expanded=False):
+                        valid_seq = ai_review.get("sequence_valid", True)
+                        conf = ai_review.get("confidence", "HIGH")
+                        st.markdown(
+                            f"**Topological Sequence:** {'Valid' if valid_seq else 'Review Sequence'} &bull; "
+                            f"**Confidence:** `{conf}`"
+                        )
+                        for w in ai_review.get("warnings", []):
+                            st.warning(f"Advisory: {w}")
+                        for ms in ai_review.get("missing_task_suggestions", []):
+                            st.info(
+                                f"Suggested Component to Review: `{ms.get('component')}` — "
+                                f"{ms.get('reason')} (Confidence: {ms.get('confidence', 'N/A')})"
+                            )
+                        for ut in ai_review.get("unnecessary_tasks", []):
+                            st.caption(f"Potential Non-Critical Item: `{ut.get('component')}` — {ut.get('reason')}")
+
+                # Progress & Metrics (only if tasks exist)
+                all_tasks: list[dict[str, Any]] = plan_data.get("tasks", [])
+                if all_tasks:
+                    st.progress(float(pct) / 100.0)
+                    st.caption(f"**Overall Progress: {pct}%** ({metrics.get('completed_tasks', 0)} of {metrics.get('total_tasks', 0)} tasks resolved)")
+
+                    m_c1, m_c2, m_c3, m_c4, m_c5, m_c6 = st.columns(6)
+                    m_c1.metric("Total Tasks", metrics.get("total_tasks", 0))
+                    m_c2.metric("Completed", metrics.get("completed_tasks", 0))
+                    m_c3.metric("In Progress", metrics.get("in_progress_tasks", 0))
+                    m_c4.metric("Pending", metrics.get("pending_tasks", 0))
+                    m_c5.metric("Blocked", metrics.get("blocked_tasks", 0))
+                    m_c6.metric("Skipped", metrics.get("skipped_tasks", 0))
+
+                    st.divider()
+
+                    # Filter Toolbar
+                    t_col1, t_col2, t_col3, t_col4 = st.columns([1.5, 1.5, 2, 1.5])
+                    with t_col1:
+                        filter_status = st.selectbox(
+                            "Status",
+                            options=["ALL", "PENDING", "IN_PROGRESS", "COMPLETED", "BLOCKED", "SKIPPED"],
+                            index=0,
+                            key="f07_filter_status",
+                        )
+                    with t_col2:
+                        filter_risk = st.selectbox(
+                            "Risk",
+                            options=["ALL", "LOW", "MEDIUM", "HIGH", "CRITICAL"],
+                            index=0,
+                            key="f07_filter_risk",
+                        )
+                    with t_col3:
+                        filter_category = st.selectbox(
+                            "Architectural Tier",
+                            options=[
+                                "ALL",
+                                "CONTRACT_API",
+                                "CORE_LOGIC",
+                                "DATA_MAPPING",
+                                "CONSUMER_HANDLER",
+                                "CLIENT_UI",
+                                "INTEGRATION_TEST",
+                                "DOCUMENTATION_CONFIG",
+                            ],
+                            index=0,
+                            key="f07_filter_cat",
+                        )
+                    with t_col4:
+                        st.write("")
+                        st.download_button(
+                            label="Download Plan JSON",
+                            data=json.dumps(plan_data, indent=2),
+                            file_name=f"upgrade_plan_{curr_plan_id[:8]}.json",
+                            mime="application/json",
+                            use_container_width=True,
+                        )
+
+                    # Filter Tasks
+                    filtered_tasks = all_tasks
+                    if filter_status != "ALL":
+                        filtered_tasks = [t for t in filtered_tasks if t.get("status") == filter_status]
+                    if filter_risk != "ALL":
+                        filtered_tasks = [t for t in filtered_tasks if t.get("risk_level") == filter_risk]
+                    if filter_category != "ALL":
+                        filtered_tasks = [t for t in filtered_tasks if t.get("category") == filter_category]
+
+                    st.markdown(f"#### Ordered Upgrade Tasks ({len(filtered_tasks)} of {len(all_tasks)})")
+
+                    tier_details = {
+                        "CONTRACT_API": {
+                            "border": "#ef4444", "bg": "rgba(239, 68, 68, 0.12)", "text": "#fca5a5",
+                            "name": "Tier 1 · API / Contract",
+                            "desc": "Public APIs, interfaces, schemas, request/response contracts",
+                        },
+                        "CORE_LOGIC": {
+                            "border": "#8b5cf6", "bg": "rgba(139, 92, 246, 0.12)", "text": "#c4b5fd",
+                            "name": "Tier 2 · Core Logic",
+                            "desc": "Business rules, services, domain/application logic",
+                        },
+                        "DATA_MAPPING": {
+                            "border": "#3b82f6", "bg": "rgba(59, 130, 246, 0.12)", "text": "#93c5fd",
+                            "name": "Tier 3 · Data / Mapping",
+                            "desc": "Database models, repositories, ORM mappings, serialization/data transformations",
+                        },
+                        "CONSUMER_HANDLER": {
+                            "border": "#f59e0b", "bg": "rgba(245, 158, 11, 0.12)", "text": "#fde68a",
+                            "name": "Tier 4 · Handlers / Consumers",
+                            "desc": "Event handlers, webhooks, message consumers, adapters",
+                        },
+                        "CLIENT_UI": {
+                            "border": "#ec4899", "bg": "rgba(236, 72, 153, 0.12)", "text": "#fbcfe8",
+                            "name": "Tier 5 · Client / UI",
+                            "desc": "Frontend, UI components, templates, client-facing behavior",
+                        },
+                        "INTEGRATION_TEST": {
+                            "border": "#10b981", "bg": "rgba(16, 185, 129, 0.12)", "text": "#6ee7b7",
+                            "name": "Tier 6 · Tests / Integration",
+                            "desc": "Unit, integration, end-to-end and regression tests",
+                        },
+                        "DOCUMENTATION_CONFIG": {
+                            "border": "#64748b", "bg": "rgba(100, 116, 139, 0.12)", "text": "#cbd5e1",
+                            "name": "Tier 7 · Documentation / Config",
+                            "desc": "Documentation, comments, non-runtime configuration and supporting project files",
+                        },
+                    }
+
+                    action_type_styles = {
+                        "REQUIRED_CHANGE": {"color": "#ef4444", "bg": "rgba(239, 68, 68, 0.15)", "label": "Required Change"},
+                        "VALIDATION_ONLY": {"color": "#38bdf8", "bg": "rgba(56, 189, 248, 0.15)", "label": "Validation Only"},
+                        "LOW_PRIORITY_REVIEW": {"color": "#f59e0b", "bg": "rgba(245, 158, 11, 0.15)", "label": "Review"},
+                        "NO_ACTION": {"color": "#94a3b8", "bg": "rgba(148, 163, 184, 0.15)", "label": "No Action"},
+                    }
+
+                    if not filtered_tasks:
+                        st.info("No tasks match the active filters.")
+                    else:
+                        for t in filtered_tasks:
+                            t_id = t["id"]
+                            step_num = t.get("step_number", 0)
+                            comp = t.get("component", "unknown")
+                            comp_type = t.get("component_type", "function")
+                            cat = t.get("category", "CORE_LOGIC")
+                            reason = t.get("reason", "")
+                            expected = t.get("expected_changes", "")
+                            tests = t.get("required_tests", [])
+                            deps = t.get("dependencies", [])
+                            t_status = t.get("status", "PENDING")
+                            t_risk = t.get("risk_level", "LOW")
+                            is_circ = t.get("is_circular", False)
+                            p_group = t.get("parallel_group_id", 1)
+                            evidence = t.get("evidence") or {}
+
+                            t_tier = tier_details.get(cat, tier_details["CORE_LOGIC"])
+                            tier_name_display = t.get("tier_name") or t_tier["name"]
+                            tier_meaning_display = t.get("tier_meaning") or t_tier["desc"]
+
+                            act_type = t.get("action_type", "REQUIRED_CHANGE")
+                            act_style = action_type_styles.get(act_type, action_type_styles["REQUIRED_CHANGE"])
+
+                            circ_alert = ""
+                            if is_circ:
+                                circ_alert = """
+                                <div style="background: rgba(239, 68, 68, 0.15); border: 1px solid #ef4444; border-radius: 6px; padding: 6px 12px; margin-bottom: 8px; font-size: 0.8rem; color: #fca5a5;">
+                                  <strong>Circular Dependency:</strong> This component is part of a cyclic cluster. Co-dependent refactoring required.
+                                </div>
+                                """
+
+                            st.markdown(
+                                f"""
+                                <div style="background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(255,255,255,0.08); border-left: 5px solid {t_tier['border']}; border-radius: 0 8px 8px 0; padding: 16px 20px; margin-bottom: 14px;">
+                                  {circ_alert}
+                                  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 8px;">
+                                    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                      <span style="background: #1e293b; color: #38bdf8; border: 1px solid #38bdf8; font-weight: 700; font-size: 0.82rem; padding: 2px 8px; border-radius: 4px;">Step {step_num}</span>
+                                      <span style="background: {t_tier['bg']}; color: {t_tier['text']}; border: 1px solid {t_tier['border']}; font-size: 0.75rem; padding: 2px 8px; border-radius: 4px; font-weight: 600;">{tier_name_display}</span>
+                                      <span style="background: {act_style['bg']}; color: {act_style['color']}; border: 1px solid {act_style['color']}; font-size: 0.75rem; padding: 2px 8px; border-radius: 4px; font-weight: 600;">{act_style['label']}</span>
+                                      <span style="background: rgba(100, 116, 139, 0.2); color: #cbd5e1; font-size: 0.72rem; padding: 2px 8px; border-radius: 4px; font-family: monospace;">Stream #{p_group}</span>
+                                    </div>
+                                    <div style="display: flex; gap: 6px; align-items: center;">
+                                      <span style="font-size: 0.72rem; color: #94a3b8; text-transform: uppercase;">Risk: <strong style="color: {risk_colors.get(t_risk, '#94a3b8')};">{t_risk}</strong></span>
+                                      <span style="font-size: 0.78rem; font-weight: 600; color: {status_colors.get(t_status, '#94a3b8')}; background: {status_colors.get(t_status, '#94a3b8')}18; border: 1px solid {status_colors.get(t_status, '#94a3b8')}; padding: 2px 8px; border-radius: 4px;">{t_status}</span>
+                                    </div>
+                                  </div>
+                                  <div style="font-size: 0.76rem; color: #94a3b8; margin-bottom: 6px;">
+                                    {tier_meaning_display}
+                                  </div>
+                                  <div style="font-size: 1.05rem; font-weight: 700; color: #f8fafc; margin-bottom: 8px;">
+                                    <code>{comp}</code> <span style="color: #94a3b8; font-size: 0.8rem; font-weight: 400;">({comp_type})</span>
+                                  </div>
+                                  <div style="font-size: 0.88rem; color: #cbd5e1; margin-bottom: 8px;">
+                                    <strong>Why this matters:</strong> {reason}
+                                  </div>
+                                  <div style="background: rgba(56, 189, 248, 0.06); border-left: 3px solid #38bdf8; border-radius: 0 4px 4px 0; padding: 8px 12px; margin-bottom: 8px; font-size: 0.85rem; color: #e2e8f0;">
+                                    <strong>{'Validation:' if act_type == 'VALIDATION_ONLY' else 'What to change:'}</strong> {expected}
+                                  </div>
+                                </div>
+                                """,
+                                unsafe_allow_html=True,
+                            )
+
+                            c_m1, c_m2 = st.columns(2)
+                            with c_m1:
+                                if deps:
+                                    st.caption(f"**Depends on ({len(deps)}):**")
+                                    st.write(", ".join(f"`{d}`" for d in deps))
+                                else:
+                                    st.caption("**Depends on:** None (Root Step)")
+                            with c_m2:
+                                if tests:
+                                    st.caption(f"**Required Tests ({len(tests)}):**")
+                                    st.write(", ".join(f"`{test}`" for test in tests))
+                                else:
+                                    st.caption("**Required Tests:** None")
+
+                            diff_snip = evidence.get("diff_snippet", "")
+                            call_chain = evidence.get("call_chain", [])
+                            lines_aff = evidence.get("lines_affected", [])
+                            if diff_snip or call_chain:
+                                with st.expander(f"Evidence for `{comp}`"):
+                                    if call_chain:
+                                        st.caption(f"Call Chain: `{' ➜ '.join(call_chain)}`")
+                                    if lines_aff and len(lines_aff) == 2 and lines_aff != [0, 0]:
+                                        st.caption(f"Lines Affected: {lines_aff[0]}–{lines_aff[1]}")
+                                    if diff_snip:
+                                        st.code(diff_snip, language="diff")
+
+                            # Interactive Status Updater
+                            with st.expander(f"Update Step #{step_num} Status", expanded=False):
+                                u_col1, u_col2, u_col3 = st.columns([2, 3, 1.5])
+                                with u_col1:
+                                    new_st = st.selectbox(
+                                        "Status",
+                                        options=["PENDING", "IN_PROGRESS", "COMPLETED", "BLOCKED", "SKIPPED"],
+                                        index=["PENDING", "IN_PROGRESS", "COMPLETED", "BLOCKED", "SKIPPED"].index(t_status) if t_status in ["PENDING", "IN_PROGRESS", "COMPLETED", "BLOCKED", "SKIPPED"] else 0,
+                                        key=f"status_sel_{t_id}",
+                                    )
+                                with u_col2:
+                                    new_notes = st.text_input(
+                                        "Developer Notes",
+                                        value=t.get("notes") or "",
+                                        placeholder="e.g. verified locally",
+                                        key=f"notes_in_{t_id}",
+                                    )
+                                with u_col3:
+                                    st.write("")
+                                    if st.button("Save", key=f"btn_save_{t_id}", use_container_width=True):
+                                        patch_payload = {"status": new_st, "notes": new_notes.strip() or None}
+                                        p_code, p_res = make_api_request(
+                                            f"{api_url}/upgrade-plans/{curr_plan_id}/tasks/{t_id}",
+                                            method="PATCH",
+                                            payload=patch_payload,
+                                        )
+                                        if p_code == 200:
+                                            st.success(f"Step #{step_num} updated to {new_st}")
+                                            st.rerun()
+                                        else:
+                                            st.error(f"Failed to update task: {p_res}")
+
+                # 3. OPTIONAL RECOMMENDATIONS (TASK != SUGGESTION)
+                info_changes = plan_data.get("informational_changes", [])
+                if p_suggestions or info_changes:
+                    st.divider()
+                    st.markdown("#### Optional Recommendations")
+                    st.caption(
+                        "Advisory guidance and non-code items. Suggestions do NOT affect upgrade "
+                        "task count, dependency ordering, or progress tracking."
+                    )
+
+                    if p_suggestions:
+                        for sug in p_suggestions:
+                            st.markdown(f"&bull; {sug}")
+
+                    if info_changes:
+                        with st.expander(f"Non-Behavioral & Documentation Changes ({len(info_changes)})", expanded=False):
+                            for ic in info_changes:
+                                st.markdown(
+                                    f"""
+                                    <div style="background: rgba(100, 116, 139, 0.1); border-left: 3px solid #64748b; padding: 8px 12px; margin-bottom: 6px; border-radius: 0 4px 4px 0;">
+                                      <div style="font-weight: 600; color: #f8fafc;"><code>{ic.get('component')}</code> <span style="font-size: 0.72rem; color: #94a3b8;">({ic.get('actionability', 'INFORMATIONAL')})</span></div>
+                                      <div style="font-size: 0.84rem; color: #cbd5e1;">{ic.get('reason')}</div>
+                                    </div>
+                                    """,
+                                    unsafe_allow_html=True,
+                                )
+                                if ic.get("diff_snippet"):
+                                    with st.expander(f"Diff for {ic.get('component')}"):
+                                        st.code(ic.get("diff_snippet"), language="diff")
+            else:
+                st.error(f"Failed to load plan `{curr_plan_id}`: {plan_data}")
 
 
 if __name__ == "__main__":

@@ -50,10 +50,83 @@ def test_synthesize_caller_at_risk_metadata() -> None:
         caller_info=caller_info,
     )
 
-    assert "Upstream caller at depth 2" in reason
+    assert "Transitive caller at depth 2" in reason
     assert "PaymentAPI.pay" in reason
-    assert "Audit invocation site for 'PaymentAPI.pay'" in expected_changes
+    assert "Verify indirect integration with 'PaymentAPI.pay'" in expected_changes
     assert evidence.call_chain == caller_info["call_chain"]
+
+
+def test_synthesize_direct_caller_metadata() -> None:
+    caller_info = {
+        "distance": 1,
+        "target_entity": "PaymentAPI.pay",
+        "call_chain": ("OrderService.place_order", "PaymentAPI.pay"),
+    }
+
+    reason, expected_changes, required_tests, evidence = TaskSynthesizer.synthesize_task_metadata(
+        component="OrderService.place_order",
+        category=TaskCategory.CORE_LOGIC,
+        component_type="method",
+        file_path="src/services/order.py",
+        caller_info=caller_info,
+    )
+
+    assert "Direct caller" in reason
+    assert "PaymentAPI.pay" in reason
+    assert "Audit direct call site of 'PaymentAPI.pay'" in expected_changes
+    assert "src/services/order.py" in expected_changes
+    assert "tests/test_order.py" in required_tests
+
+
+def test_synthesize_documentation_only_metadata() -> None:
+    flask_doc_diff = """
+- :data:`.session`, :data:`g:`, and :data:`.current_app` become available.
++ :data:`.session`, :data:`g`, and :data:`.current_app` become available.
+"""
+    raw_impact = {
+        "change_summary": "Internal function execution statements updated.",
+        "justification": "Internal calculation logic altered.",
+        "remediation_guidance": "Run test suite.",
+        "diff_snippet": flask_doc_diff,
+        "lines_affected": [120, 122],
+    }
+
+    reason, expected_changes, required_tests, evidence = TaskSynthesizer.synthesize_task_metadata(
+        component="src/flask/app.py::test_request_context",
+        category=TaskCategory.CORE_LOGIC,
+        component_type="function",
+        file_path="src/flask/app.py",
+        raw_impact=raw_impact,
+    )
+
+    # Documentation-only changes must NOT describe calculation/behavior logic changes
+    assert "Documentation or comment-only update" in reason
+    assert "No executable logic" in reason
+    assert "calculation logic altered" not in reason
+    assert "Review docstring / documentation updates" in expected_changes
+    assert required_tests == []
+
+
+def test_synthesize_test_only_metadata() -> None:
+    raw_impact = {
+        "change_summary": "Updated test assertions",
+        "justification": "Verifies new error code",
+        "remediation_guidance": "Run tests",
+        "diff_snippet": "+ assert res.status_code == 400",
+        "lines_affected": [50, 52],
+    }
+
+    reason, expected_changes, required_tests, evidence = TaskSynthesizer.synthesize_task_metadata(
+        component="tests/test_auth.py::test_login_failure",
+        category=TaskCategory.INTEGRATION_TEST,
+        component_type="function",
+        file_path="tests/test_auth.py",
+        raw_impact=raw_impact,
+    )
+
+    assert "Test suite or fixture modified" in reason
+    assert "Execute test suite 'tests/test_auth.py'" in expected_changes
+    assert "tests/test_auth.py" in required_tests
 
 
 def test_generate_llm_refactoring_prompt() -> None:
@@ -90,8 +163,7 @@ def test_parse_llm_enrichment_success_and_markdown_cleaning() -> None:
 
     # 2. Markdown fenced JSON
     raw_2 = (
-        '```json\n{"refined_reason": "Fenced output", '
-        '"detailed_expected_changes": "Fix it"}\n```'
+        '```json\n{"refined_reason": "Fenced output", "detailed_expected_changes": "Fix it"}\n```'
     )
     res_2 = TaskSynthesizer.parse_llm_enrichment(raw_2)
     assert res_2 is not None
@@ -122,7 +194,7 @@ async def test_enrich_task_with_openrouter_success() -> None:
     }
 
     with patch("httpx.AsyncClient.post", new_callable=AsyncMock, return_value=mock_resp):
-        reason, changes, tests = await TaskSynthesizer.enrich_task_with_openrouter(
+        reason, changes, tests, ai_review = await TaskSynthesizer.enrich_task_with_openrouter(
             component="PaymentAPI.pay",
             category=TaskCategory.CONTRACT_API,
             component_type="endpoint",
@@ -135,13 +207,14 @@ async def test_enrich_task_with_openrouter_success() -> None:
         assert reason == "AI enriched reason"
         assert changes == "AI enriched changes"
         assert tests == ["tests/test_ai.py"]
+        assert ai_review is not None
 
 
 @pytest.mark.asyncio
 async def test_enrich_task_with_openrouter_fallback_on_error() -> None:
     # Test network failure / timeout fallback
     with patch("httpx.AsyncClient.post", side_effect=Exception("Connection timed out")):
-        reason, changes, tests = await TaskSynthesizer.enrich_task_with_openrouter(
+        reason, changes, tests, ai_review = await TaskSynthesizer.enrich_task_with_openrouter(
             component="PaymentAPI.pay",
             category=TaskCategory.CONTRACT_API,
             component_type="endpoint",
@@ -155,3 +228,4 @@ async def test_enrich_task_with_openrouter_fallback_on_error() -> None:
         assert reason == "Base reason"
         assert changes == "Base changes"
         assert tests is None
+        assert ai_review is None
