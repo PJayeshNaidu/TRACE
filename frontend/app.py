@@ -8,6 +8,7 @@ Completely decoupled from backend internal domain and database models.
 import html
 import json
 import os
+import textwrap
 import time
 import urllib.error
 import urllib.parse
@@ -642,14 +643,455 @@ def render_graph_canvas(nodes: list[dict[str, Any]], rels: list[dict[str, Any]])
         st.warning("Streamlit HTML components not available.")
 
 
+def render_html(html_str: str) -> None:
+    """Render HTML safely in Streamlit by dedenting to column 0, preventing CommonMark code block leaks."""
+    if not html_str:
+        return
+    cleaned = textwrap.dedent(html_str).strip()
+    if st is not None:
+        st.markdown(cleaned, unsafe_allow_html=True)
+
+
+def inject_neo_brutalist_css(theme_mode: str = "light") -> None:
+    """Inject high-contrast Neo-Brutalist design system CSS into the Streamlit app."""
+    is_dark = theme_mode.lower() == "dark"
+
+    if is_dark:
+        theme_vars = """
+        :root {
+          --nb-bg: #09090B;
+          --nb-surface: #18181B;
+          --nb-surface-card: #18181B;
+          --nb-surface-alt: #27272A;
+          --nb-tab-bg: #18181B;
+          --nb-tab-hover-bg: #27272A;
+          --nb-tab-active-bg: #CCFF00;
+          --nb-tab-active-text: #000000;
+          --nb-text: #FAFAFA;
+          --nb-text-muted: #D4D4D8;
+          --nb-text-subtle: #A1A1AA;
+          --nb-border: #FFFFFF;
+          --nb-border-interactive: #FFFFFF;
+          --nb-shadow: 3px 3px 0px #FFFFFF;
+          --nb-shadow-lg: 4px 4px 0px #FFFFFF;
+          --nb-shadow-sm: 2px 2px 0px #FFFFFF;
+          --nb-shadow-hover: 2px 2px 0px #FFFFFF;
+          --nb-shadow-active: 0px 0px 0px #FFFFFF;
+          --nb-accent-yellow: #FACC15;
+          --nb-accent-lime: #CCFF00;
+          --nb-accent-blue: #3B82F6;
+          --nb-accent-red: #EF4444;
+          --nb-accent-green: #22C55E;
+          --nb-code-bg: #27272A;
+          --nb-code-text: #F8FAFC;
+          --bg-canvas: #09090B;
+          --card-bg: #18181B;
+          --border-color: #FFFFFF;
+          --shadow-color: #FFFFFF;
+          --text-primary: #FAFAFA;
+          --text-secondary: #D4D4D8;
+        }
+        """
+    else:
+        theme_vars = """
+        :root {
+          --nb-bg: #FAF9F5;
+          --nb-surface: #FFFFFF;
+          --nb-surface-card: #FFFFFF;
+          --nb-surface-alt: #F4F4F5;
+          --nb-tab-bg: #FFFFFF;
+          --nb-tab-hover-bg: #F4F4F5;
+          --nb-tab-active-bg: #CCFF00;
+          --nb-tab-active-text: #000000;
+          --nb-text: #000000;
+          --nb-text-muted: #27272A;
+          --nb-text-subtle: #52525B;
+          --nb-border: #000000;
+          --nb-border-interactive: #000000;
+          --nb-shadow: 3px 3px 0px #000000;
+          --nb-shadow-lg: 4px 4px 0px #000000;
+          --nb-shadow-sm: 2px 2px 0px #000000;
+          --nb-shadow-hover: 2px 2px 0px #000000;
+          --nb-shadow-active: 0px 0px 0px #000000;
+          --nb-accent-yellow: #FACC15;
+          --nb-accent-lime: #CCFF00;
+          --nb-accent-blue: #2563EB;
+          --nb-accent-red: #DC2626;
+          --nb-accent-green: #16A34A;
+          --nb-code-bg: #F1F5F9;
+          --nb-code-text: #000000;
+          --bg-canvas: #FAF9F5;
+          --card-bg: #FFFFFF;
+          --border-color: #000000;
+          --shadow-color: #000000;
+          --text-primary: #09090B;
+          --text-secondary: #27272A;
+        }
+        """
+
+    css_code = f"""
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap');
+
+    {theme_vars}
+
+    /* Enforce 90-degree Sharp Corners across ALL UI elements */
+    *, *::before, *::after {{
+      border-radius: 0px !important;
+    }}
+
+    /* Core Application Canvas */
+    .stApp {{
+      background-color: var(--nb-bg) !important;
+      color: var(--nb-text) !important;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+    }}
+
+    [data-testid="stAppViewContainer"] {{
+      background-color: var(--nb-bg) !important;
+    }}
+
+    [data-testid="stHeader"] {{
+      background-color: var(--nb-bg) !important;
+    }}
+
+    /* Sidebar - Neo-Brutalist Frame */
+    [data-testid="stSidebar"] {{
+      background-color: var(--nb-surface) !important;
+      border-right: 2px solid var(--nb-border) !important;
+    }}
+
+    [data-testid="stSidebar"] hr {{
+      border-color: var(--nb-border) !important;
+    }}
+
+    /* Typography - Strict Headings */
+    h1, h2, h3, h4, h5, h6 {{
+      font-family: 'Inter', -apple-system, sans-serif !important;
+      font-weight: 800 !important;
+      color: var(--nb-text) !important;
+      letter-spacing: -0.4px !important;
+    }}
+
+    /* Protect Streamlit Material Symbols & Icon Ligatures */
+    [data-testid="stIconMaterial"],
+    [data-testid="stExpander"] summary svg,
+    button svg,
+    [data-testid="stExpander"] summary span[data-testid="stIconMaterial"],
+    [data-testid="stExpander"] summary span:has(svg),
+    button [data-testid="stIconMaterial"],
+    .material-symbols-rounded,
+    .material-symbols-outlined,
+    .material-icons,
+    [data-testid="stIconMaterial"] * {{
+      font-family: 'Material Symbols Rounded', 'Material Icons', sans-serif !important;
+    }}
+
+    /* Widget Labels & Captions (Explicit High Contrast) */
+    [data-testid="stWidgetLabel"] label,
+    [data-testid="stWidgetLabel"] p,
+    [data-testid="stRadio"] label,
+    [data-testid="stRadio"] div[role="radiogroup"] label,
+    [data-testid="stCaptionContainer"] p,
+    .stCaption {{
+      color: var(--nb-text) !important;
+      font-weight: 700 !important;
+      font-family: 'Inter', sans-serif !important;
+      font-size: 0.88rem !important;
+      letter-spacing: 0.2px !important;
+    }}
+
+    [data-testid="stRadio"] div[role="radiogroup"] label > div:first-child {{
+      border: 2px solid var(--nb-border) !important;
+      background-color: var(--nb-surface) !important;
+      border-radius: 0px !important;
+    }}
+
+    /* Monospace elements */
+    code, pre, kbd, samp {{
+      font-family: 'JetBrains Mono', Consolas, 'Courier New', monospace !important;
+    }}
+
+    code {{
+      background-color: var(--nb-code-bg) !important;
+      color: var(--nb-code-text) !important;
+      border: 1.5px solid var(--nb-border) !important;
+      border-radius: 0px !important;
+      padding: 1px 5px !important;
+      font-size: 0.88em !important;
+      font-weight: 700 !important;
+    }}
+
+    /* Buttons - Solid crisp borders, hard offset shadows, zero diffuse blur */
+    .stButton > button,
+    [data-testid="stDownloadButton"] > button,
+    .stFormSubmitButton > button {{
+      border: 2px solid var(--nb-border) !important;
+      border-radius: 0px !important;
+      font-weight: 800 !important;
+      font-family: 'Inter', sans-serif !important;
+      letter-spacing: 0.3px !important;
+      text-transform: uppercase !important;
+      box-shadow: var(--nb-shadow) !important;
+      transition: transform 0.08s ease, box-shadow 0.08s ease !important;
+    }}
+
+    .stButton > button:hover,
+    [data-testid="stDownloadButton"] > button:hover,
+    .stFormSubmitButton > button:hover {{
+      transform: translate(1px, 1px) !important;
+      box-shadow: var(--nb-shadow-hover) !important;
+    }}
+
+    .stButton > button:active,
+    [data-testid="stDownloadButton"] > button:active,
+    .stFormSubmitButton > button:active {{
+      transform: translate(3px, 3px) !important;
+      box-shadow: var(--nb-shadow-active) !important;
+    }}
+
+    .stButton > button[kind="primary"],
+    .stFormSubmitButton > button[kind="primary"] {{
+      background-color: #2563EB !important;
+      color: #FFFFFF !important;
+      border: 2px solid var(--nb-border) !important;
+      box-shadow: var(--nb-shadow) !important;
+      border-radius: 0px !important;
+    }}
+
+    .stButton > button[kind="secondary"] {{
+      background-color: var(--nb-surface) !important;
+      color: var(--nb-text) !important;
+      border-color: var(--nb-border) !important;
+    }}
+
+    /* Form Controls & Inputs */
+    [data-testid="stTextInput"] input,
+    [data-testid="stTextArea"] textarea,
+    [data-testid="stSelectbox"] > div > div {{
+      border: 2px solid var(--nb-border) !important;
+      border-radius: 0px !important;
+      background-color: var(--nb-surface) !important;
+      color: var(--nb-text) !important;
+      box-shadow: var(--nb-shadow-sm) !important;
+      font-family: 'JetBrains Mono', Consolas, monospace !important;
+      font-size: 0.88rem !important;
+      font-weight: 600 !important;
+    }}
+
+    [data-testid="stTextInput"] input:focus,
+    [data-testid="stTextArea"] textarea:focus {{
+      border-color: var(--nb-accent-blue) !important;
+      box-shadow: 2px 2px 0px var(--nb-accent-blue) !important;
+    }}
+
+    /* Disabled Text Inputs (Explicit High Contrast) */
+    [data-testid="stTextInput"] input:disabled {{
+      background-color: var(--nb-code-bg) !important;
+      color: var(--nb-text-muted) !important;
+      border: 2px solid var(--nb-border) !important;
+      border-radius: 0px !important;
+      opacity: 1 !important;
+      cursor: not-allowed;
+    }}
+
+    /* Targeted Streamlit BaseWeb Tab CSS - Authentic Neo-Brutalist Rectangular Button Tiles */
+    [data-testid="stTabs"] {{
+      border: none !important;
+    }}
+
+    [data-testid="stTabs"] [data-baseweb="tab-list"],
+    [data-testid="stTabs"] div[data-baseweb="tab-list"],
+    div[data-baseweb="tab-list"],
+    [data-testid="stTabs"] [role="tablist"] {{
+      background-color: transparent !important;
+      border-bottom: none !important;
+      border: none !important;
+      box-shadow: none !important;
+      gap: 14px !important;
+      padding: 8px 0px 20px 0px !important;
+      display: flex !important;
+      flex-wrap: wrap !important;
+    }}
+
+    /* Hide default tab highlight bar and border line */
+    [data-testid="stTabs"] [data-baseweb="tab-highlight"],
+    [data-testid="stTabs"] div[data-baseweb="tab-highlight"],
+    div[data-baseweb="tab-highlight"],
+    [data-testid="stTabs"] [data-baseweb="tab-border"],
+    [data-testid="stTabs"] div[data-baseweb="tab-border"],
+    div[data-baseweb="tab-border"] {{
+      display: none !important;
+      background-color: transparent !important;
+      height: 0px !important;
+      width: 0px !important;
+      border: none !important;
+    }}
+
+    /* Inactive Tab: Crisp White Box with 2px Border and Hard Shadow */
+    [data-testid="stTabs"] button[data-baseweb="tab"],
+    button[data-baseweb="tab"],
+    [data-testid="stTabs"] [role="tab"],
+    [data-testid="stTabs"] button[role="tab"] {{
+      background-color: var(--nb-tab-bg) !important;
+      border: 2px solid var(--nb-border) !important;
+      border-radius: 0px !important;
+      box-shadow: var(--nb-shadow) !important;
+      color: var(--nb-text) !important;
+      font-weight: 700 !important;
+      font-family: 'Inter', -apple-system, sans-serif !important;
+      font-size: 0.92rem !important;
+      letter-spacing: 0.3px !important;
+      padding: 10px 22px !important;
+      height: auto !important;
+      margin: 0px !important;
+      transition: transform 0.08s ease, box-shadow 0.08s ease !important;
+      text-align: center !important;
+    }}
+
+    [data-testid="stTabs"] button[data-baseweb="tab"]:hover,
+    button[data-baseweb="tab"]:hover,
+    [data-testid="stTabs"] [role="tab"]:hover,
+    [data-testid="stTabs"] button[role="tab"]:hover:not([aria-selected="true"]) {{
+      background-color: var(--nb-tab-hover-bg) !important;
+      color: var(--nb-text) !important;
+      transform: translate(1px, 1px) !important;
+      box-shadow: var(--nb-shadow-hover) !important;
+    }}
+
+    /* Active Selected Tab: Bright Neo-Brutalist Highlight Tile (Lime/Volt) */
+    [data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"],
+    button[data-baseweb="tab"][aria-selected="true"],
+    [data-testid="stTabs"] [role="tab"][aria-selected="true"],
+    [data-testid="stTabs"] button[role="tab"][aria-selected="true"] {{
+      background-color: #CCFF00 !important; /* Vivid Neo-brutalist Lime */
+      color: #000000 !important;
+      border: 2px solid var(--nb-border) !important;
+      border-radius: 0px !important;
+      box-shadow: 1px 1px 0px var(--nb-border) !important;
+      transform: translate(2px, 2px) !important;
+      font-weight: 800 !important;
+    }}
+
+    /* Ensure inner tab text inherits color and removes red accent */
+    [data-testid="stTabs"] [role="tab"] p,
+    [data-testid="stTabs"] [role="tab"] span,
+    [data-testid="stTabs"] button[data-baseweb="tab"] p,
+    [data-testid="stTabs"] button[data-baseweb="tab"] span {{
+      color: inherit !important;
+      font-weight: inherit !important;
+    }}
+
+    /* Expanders */
+    [data-testid="stExpander"] {{
+      border: 2px solid var(--nb-border) !important;
+      border-radius: 0px !important;
+      background-color: var(--nb-surface) !important;
+      box-shadow: var(--nb-shadow) !important;
+      margin-bottom: 14px !important;
+    }}
+
+    [data-testid="stExpander"] details summary p {{
+      font-weight: 800 !important;
+      font-family: 'Inter', sans-serif !important;
+      color: var(--nb-text) !important;
+      font-size: 0.92rem !important;
+    }}
+
+    [data-testid="stExpander"] details summary svg {{
+      fill: var(--nb-text) !important;
+    }}
+
+    /* Metrics */
+    [data-testid="stMetric"] {{
+      background-color: var(--nb-surface) !important;
+      border: 2px solid var(--nb-border) !important;
+      border-radius: 0px !important;
+      box-shadow: var(--nb-shadow) !important;
+      padding: 10px 14px !important;
+    }}
+
+    [data-testid="stMetricValue"] {{
+      font-family: 'JetBrains Mono', Consolas, monospace !important;
+      font-weight: 800 !important;
+      color: var(--nb-text) !important;
+      font-size: 1.5rem !important;
+    }}
+
+    [data-testid="stMetricLabel"] {{
+      font-family: 'Inter', sans-serif !important;
+      font-weight: 800 !important;
+      text-transform: uppercase !important;
+      font-size: 0.72rem !important;
+      letter-spacing: 0.5px !important;
+      color: var(--nb-text-muted) !important;
+    }}
+
+    /* Alerts */
+    [data-testid="stAlert"] {{
+      border: 2px solid var(--nb-border) !important;
+      border-radius: 0px !important;
+      box-shadow: var(--nb-shadow) !important;
+      color: var(--nb-text) !important;
+      font-weight: 700 !important;
+    }}
+
+    /* Dataframe containers */
+    [data-testid="stDataFrame"] {{
+      border: 2px solid var(--nb-border) !important;
+      border-radius: 0px !important;
+      box-shadow: var(--nb-shadow) !important;
+      background: var(--nb-surface) !important;
+    }}
+
+    /* Progress bar */
+    [data-testid="stProgress"] > div {{
+      border: 2px solid var(--nb-border) !important;
+      border-radius: 0px !important;
+      background-color: var(--nb-surface) !important;
+      height: 16px !important;
+    }}
+
+    [data-testid="stProgress"] > div > div {{
+      background-color: var(--nb-accent-blue) !important;
+      border-radius: 0px !important;
+    }}
+
+    /* Framed Vertical Block Containers */
+    [data-testid="stVerticalBlockBorderWrapper"] > div {{
+      background-color: var(--nb-surface) !important;
+      border: 2px solid var(--nb-border) !important;
+      box-shadow: var(--nb-shadow-lg) !important;
+      border-radius: 0px !important;
+      padding: 16px 20px !important;
+      margin-bottom: 20px !important;
+    }}
+
+    /* Dividers */
+    hr {{
+      border-color: var(--nb-border) !important;
+      border-width: 1.5px !important;
+      opacity: 1 !important;
+    }}
+    </style>
+    """
+    render_html(css_code)
+
+
 def render_colored_diff(file_diff: dict[str, Any]) -> str:
-    """Render a GitHub-style colored unified diff with green additions and red deletions."""
+    """Render a clean neo-brutalist unified diff with crisp borders, green additions, and red deletions."""
     hunks = file_diff.get("hunks", [])
     if not hunks:
-        return "<div style='color: #94a3b8; font-style: italic; padding: 10px;'>No line hunks available for this file.</div>"
+        return (
+            '<div style="color: var(--nb-text-muted); font-style: italic; padding: 12px; '
+            'border: 1.5px solid var(--nb-border); border-radius: 0px; background: var(--nb-surface);">'
+            'No line hunks available for this file.</div>'
+        )
 
     html_parts = [
-        """<div style="font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 12px; background: #0b0f19; border: 1px solid #1e293b; border-radius: 8px; overflow: hidden; margin-top: 8px; margin-bottom: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.4);">"""
+        '<div style="font-family: \'JetBrains Mono\', Consolas, monospace; font-size: 12px; '
+        'background: var(--nb-surface); border: 2px solid var(--nb-border); border-radius: 0px; '
+        'overflow-x: auto; margin: 8px 0 16px 0; box-shadow: var(--nb-shadow);">'
     ]
 
     for h_idx, h in enumerate(hunks, 1):
@@ -659,12 +1101,20 @@ def render_colored_diff(file_diff: dict[str, Any]) -> str:
         new_lines = h.get("new_lines", 0)
         header_text = h.get("header", "").strip()
 
-        context_str = f" &bull; <span style='color: #93c5fd;'>{html.escape(header_text)}</span>" if header_text else ""
+        context_str = f" &bull; <span style='font-weight: 700;'>{html.escape(header_text)}</span>" if header_text else ""
+        top_border = "1.5px solid var(--nb-border)" if h_idx > 1 else "none"
+
         html_parts.append(
-            f"""<div style="background: #111827; color: #38bdf8; padding: 7px 12px; font-weight: 600; font-size: 11px; border-bottom: 1px solid #1e293b; border-top: 1px solid #1e293b; display: flex; align-items: center; justify-content: space-between;">
-                <div><span>📍 Hunk #{h_idx}: Lines {new_start}–{new_start + max(0, new_lines - 1)}</span>{context_str}</div>
-                <div style="font-size: 10px; color: #64748b; font-family: monospace;">- {old_start},{old_lines} / + {new_start},{new_lines}</div>
-            </div>"""
+            f'<div style="background: var(--nb-code-bg); color: var(--nb-text); padding: 8px 12px; '
+            f'font-weight: 700; font-size: 11px; border-bottom: 1.5px solid var(--nb-border); '
+            f'border-top: {top_border}; '
+            f'display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">'
+            f'<div><span>Hunk #{h_idx}: Lines {new_start}–{new_start + max(0, new_lines - 1)}</span>{context_str}</div>'
+            f'<div style="font-size: 11px; font-weight: 700; font-family: monospace;">'
+            f'<span style="color: #dc2626;">-{old_start},{old_lines}</span> / '
+            f'<span style="color: #16a34a;">+{new_start},{new_lines}</span>'
+            f'</div>'
+            f'</div>'
         )
 
         content = h.get("content", "")
@@ -674,23 +1124,23 @@ def render_colored_diff(file_diff: dict[str, Any]) -> str:
         old_ptr = old_start
         new_ptr = new_start
 
-        html_parts.append("""<table style="width: 100%; border-collapse: collapse; table-layout: fixed;">""")
+        html_parts.append('<table style="width: 100%; border-collapse: collapse; table-layout: fixed;">')
 
         for raw_line in content.splitlines():
             line_str = html.escape(raw_line)
             if raw_line.startswith("+") and not raw_line.startswith("+++"):
-                bg = "rgba(16, 185, 129, 0.15)"
-                text_color = "#34d399"
-                border_style = "border-left: 3px solid #10b981;"
+                bg = "rgba(22, 163, 74, 0.12)"
+                text_color = "#15803d"
+                border_style = "border-left: 4px solid #16a34a;"
                 old_num = ""
                 new_num = str(new_ptr)
                 new_ptr += 1
                 sym = "+"
                 code_text = line_str[1:] if len(line_str) > 1 else ""
             elif raw_line.startswith("-") and not raw_line.startswith("---"):
-                bg = "rgba(239, 68, 68, 0.15)"
-                text_color = "#f87171"
-                border_style = "border-left: 3px solid #ef4444;"
+                bg = "rgba(220, 38, 38, 0.12)"
+                text_color = "#b91c1c"
+                border_style = "border-left: 4px solid #dc2626;"
                 old_num = str(old_ptr)
                 new_num = ""
                 old_ptr += 1
@@ -698,8 +1148,8 @@ def render_colored_diff(file_diff: dict[str, Any]) -> str:
                 code_text = line_str[1:] if len(line_str) > 1 else ""
             else:
                 bg = "transparent"
-                text_color = "#cbd5e1"
-                border_style = "border-left: 3px solid transparent;"
+                text_color = "var(--nb-text)"
+                border_style = "border-left: 4px solid transparent;"
                 old_num = str(old_ptr)
                 new_num = str(new_ptr)
                 old_ptr += 1
@@ -708,17 +1158,17 @@ def render_colored_diff(file_diff: dict[str, Any]) -> str:
                 code_text = line_str[1:] if (len(line_str) > 1 and raw_line.startswith(" ")) else line_str
 
             html_parts.append(
-                f"""<tr style="background: {bg}; {border_style}; line-height: 20px;">
-                    <td style="width: 38px; text-align: right; padding: 0 6px; color: #475569; user-select: none; font-size: 11px; border-right: 1px solid rgba(255,255,255,0.05); font-family: monospace;">{old_num}</td>
-                    <td style="width: 38px; text-align: right; padding: 0 6px; color: #475569; user-select: none; font-size: 11px; border-right: 1px solid rgba(255,255,255,0.05); font-family: monospace;">{new_num}</td>
-                    <td style="width: 18px; text-align: center; color: {text_color}; font-weight: bold; user-select: none; font-family: monospace;">{sym}</td>
-                    <td style="padding: 0 8px; color: {text_color}; white-space: pre-wrap; word-break: break-all; font-family: 'JetBrains Mono', monospace;">{code_text}</td>
-                </tr>"""
+                f'<tr style="background: {bg}; {border_style}; line-height: 20px;">'
+                f'<td style="width: 42px; text-align: right; padding: 0 6px; color: var(--nb-text-muted); user-select: none; font-size: 11px; border-right: 1px solid var(--nb-border); font-family: monospace;">{old_num}</td>'
+                f'<td style="width: 42px; text-align: right; padding: 0 6px; color: var(--nb-text-muted); user-select: none; font-size: 11px; border-right: 1px solid var(--nb-border); font-family: monospace;">{new_num}</td>'
+                f'<td style="width: 20px; text-align: center; color: {text_color}; font-weight: 700; user-select: none; font-family: monospace;">{sym}</td>'
+                f'<td style="padding: 2px 8px; color: {text_color}; white-space: pre-wrap; word-break: break-all; font-family: \'JetBrains Mono\', monospace; font-size: 12px;">{code_text}</td>'
+                f'</tr>'
             )
 
-        html_parts.append("""</table>""")
+        html_parts.append('</table>')
 
-    html_parts.append("""</div>""")
+    html_parts.append('</div>')
     return "".join(html_parts)
 
 
@@ -1246,170 +1696,243 @@ def run_app() -> None:
 
     st.set_page_config(
         page_title="TRACE Code Intelligence Observatory",
-        page_icon="🔬",
         layout="wide",
     )
 
-    st.title("🔬 TRACE Code Intelligence Observatory")
-    st.caption("Phase 2 (F02) — Deterministic Static Code Analysis & Structural Intelligence")
+    # Sidebar: Section 1 - System & Connectivity
+    with st.sidebar.container(border=True):
+        st.markdown(
+            """
+            <div style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1.2px; font-weight: 800; color: var(--nb-text-muted); margin-bottom: 8px;">
+              SYSTEM & CONNECTIVITY
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        theme_mode = st.radio("Theme Mode", ["Light", "Dark"], index=0, horizontal=True)
+        inject_neo_brutalist_css(theme_mode.lower())
 
-    # Sidebar configuration
-    st.sidebar.header("Configuration & Connectivity")
-    api_url = st.sidebar.text_input(
-        "TRACE API Base URL",
-        value=os.environ.get("TRACE_API_URL", "http://127.0.0.1:8000/api/v1"),
-    )
+        api_url = st.text_input(
+            "TRACE API Base URL",
+            value=os.environ.get("TRACE_API_URL", "http://127.0.0.1:8000/api/v1"),
+        )
 
-    health_url = api_url.rsplit("/api/v1", 1)[0] + "/health"
-    status_code, health_data = make_api_request(health_url)
-    if status_code == 200:
-        st.sidebar.success("Backend API Connected")
-    else:
-        st.sidebar.warning(f"Backend API Offline ({status_code})")
+        health_url = api_url.rsplit("/api/v1", 1)[0] + "/health"
+        status_code, health_data = make_api_request(health_url)
+        if status_code == 200:
+            render_html(
+                """
+                <div style="display: flex; align-items: center; justify-content: space-between; background: var(--nb-surface); border: 2px solid var(--nb-border); padding: 8px 12px; margin-top: 6px; box-shadow: var(--nb-shadow-sm); border-radius: 0px;">
+                  <span style="font-size: 0.78rem; font-weight: 700; color: var(--nb-text); font-family: 'Inter', sans-serif;">API Status</span>
+                  <span style="background: #16a34a; color: #FFFFFF; font-size: 0.72rem; font-weight: 800; padding: 2px 8px; border-radius: 0px; font-family: 'JetBrains Mono', monospace;">CONNECTED</span>
+                </div>
+                """
+            )
+        else:
+            render_html(
+                f"""
+                <div style="display: flex; align-items: center; justify-content: space-between; background: var(--nb-surface); border: 2px solid #ef4444; padding: 8px 12px; margin-top: 6px; box-shadow: var(--nb-shadow-sm); border-radius: 0px;">
+                  <span style="font-size: 0.78rem; font-weight: 700; color: var(--nb-text); font-family: 'Inter', sans-serif;">API Status</span>
+                  <span style="background: #ef4444; color: #FFFFFF; font-size: 0.72rem; font-weight: 800; padding: 2px 8px; border-radius: 0px; font-family: 'JetBrains Mono', monospace;">OFFLINE ({status_code})</span>
+                </div>
+                """
+            )
 
+    st.title("TRACE Code Intelligence Observatory")
+
+    # Sidebar: Section 2 - Project Workspace
     # Fetch projects
     projects_code, projects_data = make_api_request(f"{api_url}/projects")
     projects_list = projects_data.get("items", []) if projects_code == 200 and projects_data else []
 
-    # Sidebar: Project Management
-    with st.sidebar.expander("➕ Create New Project", expanded=(len(projects_list) == 0)):
-        with st.form("create_project_form"):
-            new_p_name = st.text_input("Project Name", placeholder="e.g. TRACE-Core")
-            new_p_desc = st.text_area("Description (optional)", placeholder="Core TRACE engine")
-            create_p_btn = st.form_submit_button("Create Project", type="primary")
-            if create_p_btn:
-                if not new_p_name.strip():
-                    st.error("Project name is required.")
-                else:
-                    p_code, p_res = make_api_request(
-                        f"{api_url}/projects",
-                        method="POST",
-                        payload={"name": new_p_name.strip(), "description": new_p_desc.strip() or None},
-                    )
-                    if p_code in (200, 201):
-                        st.success(f"Project created: {new_p_name}")
-                        st.rerun()
+    with st.sidebar.container(border=True):
+        st.markdown(
+            """
+            <div style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1.2px; font-weight: 800; color: var(--nb-text-muted); margin-bottom: 8px;">
+              PROJECT WORKSPACE
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        if projects_list:
+            project_map = {f"{p['name']} ({p['id'][:8]}...)": p["id"] for p in projects_list}
+            selected_project_name = st.selectbox("Active Project", options=list(project_map.keys()))
+            selected_project_id = project_map[selected_project_name]
+        else:
+            selected_project_id = None
+            selected_project_name = None
+
+        # Sidebar: Project Management Form
+        with st.expander("Create New Project", expanded=(len(projects_list) == 0)):
+            with st.form("create_project_form"):
+                new_p_name = st.text_input("Project Name", placeholder="e.g. TRACE-Core")
+                new_p_desc = st.text_area("Description (optional)", placeholder="Core TRACE engine")
+                create_p_btn = st.form_submit_button("Create Project", type="primary", use_container_width=True)
+                if create_p_btn:
+                    if not new_p_name.strip():
+                        st.error("Project name is required.")
                     else:
-                        st.error(f"Failed ({p_code}): {p_res}")
+                        p_code, p_res = make_api_request(
+                            f"{api_url}/projects",
+                            method="POST",
+                            payload={"name": new_p_name.strip(), "description": new_p_desc.strip() or None},
+                        )
+                        if p_code in (200, 201):
+                            st.success(f"Project created: {new_p_name}")
+                            st.rerun()
+                        else:
+                            st.error(f"Failed ({p_code}): {p_res}")
 
     if not projects_list:
-        st.info("👋 Welcome to TRACE! No projects registered yet. Use the sidebar to create your first project.")
+        st.info("Welcome to TRACE! No projects registered yet. Use the sidebar to create your first project.")
         return
 
-    project_map = {f"{p['name']} ({p['id'][:8]}...)": p["id"] for p in projects_list}
-    selected_project_name = st.sidebar.selectbox("Select Project", options=list(project_map.keys()))
-    selected_project_id = project_map[selected_project_name]
-
+    # Sidebar: Section 3 - Repository Configuration
     # Fetch repositories for selected project
     repos_code, repos_data = make_api_request(f"{api_url}/projects/{selected_project_id}/repositories")
     repos_list = repos_data.get("items", []) if repos_code == 200 and repos_data else []
 
-    # Sidebar: Repository Management
-    with st.sidebar.expander("➕ Register Repository", expanded=(len(repos_list) == 0)):
-        with st.form("register_repo_form"):
-            repo_kind = st.radio("Source Type", ["🌐 Remote Git Repo", "📁 Local Path"], horizontal=True)
-            if repo_kind == "🌐 Remote Git Repo":
-                r_type = "REMOTE"
-                r_location = st.text_input(
-                    "Git Repository URL (.git)",
-                    value="https://github.com/psf/requests.git",
-                    placeholder="https://github.com/encode/httpx.git",
-                    help="Any public or accessible Git repository URL",
-                )
-            else:
-                r_type = "LOCAL"
-                r_location = st.text_input(
-                    "Local Directory Path",
-                    value="/workspace",
-                    help="Container directory path (e.g. /workspace or /app)",
-                )
-            r_branch = st.text_input("Branch / Tag / Ref (optional)", value="HEAD")
-            reg_btn = st.form_submit_button("Register Repository", type="primary")
-            if reg_btn:
-                if not r_location.strip():
-                    st.error("Location or Git URL is required.")
-                else:
-                    reg_code, reg_res = make_api_request(
-                        f"{api_url}/projects/{selected_project_id}/repositories",
-                        method="POST",
-                        payload={
-                            "location": r_location.strip(),
-                            "type": r_type,
-                            "default_branch": r_branch.strip() or None,
-                        },
+    with st.sidebar.container(border=True):
+        st.markdown(
+            """
+            <div style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1.2px; font-weight: 800; color: var(--nb-text-muted); margin-bottom: 8px;">
+              REPOSITORY CONFIGURATION
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        if repos_list:
+            repo_map = {f"{r['location']} [{r['type']}]": r["id"] for r in repos_list}
+            selected_repo_name = st.selectbox("Active Repository", options=list(repo_map.keys()))
+            selected_repo_id = repo_map[selected_repo_name]
+        else:
+            selected_repo_id = None
+            selected_repo_name = None
+
+        # Sidebar: Repository Management Form
+        with st.expander("Register Repository", expanded=(len(repos_list) == 0)):
+            with st.form("register_repo_form"):
+                repo_kind = st.radio("Source Type", ["Remote Git Repo", "Local Path"], horizontal=True)
+                if repo_kind == "Remote Git Repo":
+                    r_type = "REMOTE"
+                    r_location = st.text_input(
+                        "Git Repository URL (.git)",
+                        value="https://github.com/psf/requests.git",
+                        placeholder="https://github.com/encode/httpx.git",
+                        help="Any public or accessible Git repository URL",
                     )
-                    if reg_code in (200, 201):
-                        st.success(f"Repository registered ({r_type})!")
-                        st.rerun()
+                else:
+                    r_type = "LOCAL"
+                    r_location = st.text_input(
+                        "Local Directory Path",
+                        value="/workspace",
+                        help="Container directory path (e.g. /workspace or /app)",
+                    )
+                r_branch = st.text_input("Branch / Tag / Ref (optional)", value="HEAD")
+                reg_btn = st.form_submit_button("Register Repository", type="primary", use_container_width=True)
+                if reg_btn:
+                    if not r_location.strip():
+                        st.error("Location or Git URL is required.")
                     else:
-                        st.error(f"Failed ({reg_code}): {reg_res}")
+                        reg_code, reg_res = make_api_request(
+                            f"{api_url}/projects/{selected_project_id}/repositories",
+                            method="POST",
+                            payload={
+                                "location": r_location.strip(),
+                                "type": r_type,
+                                "default_branch": r_branch.strip() or None,
+                            },
+                        )
+                        if reg_code in (200, 201):
+                            st.success(f"Repository registered ({r_type})!")
+                            st.rerun()
+                        else:
+                            st.error(f"Failed ({reg_code}): {reg_res}")
 
     if not repos_list:
         st.warning(f"No repositories registered for project **{selected_project_name}**. Use the sidebar to register one.")
         return
 
-    repo_map = {f"{r['location']} [{r['type']}]": r["id"] for r in repos_list}
-    selected_repo_name = st.sidebar.selectbox("Select Repository", options=list(repo_map.keys()))
-    selected_repo_id = repo_map[selected_repo_name]
+    # Sidebar: Section 4 - AI Reasoning Synthesis (Optional)
+    with st.sidebar.container(border=True):
+        st.markdown(
+            """
+            <div style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1.2px; font-weight: 800; color: var(--nb-text-muted); margin-bottom: 8px;">
+              AI SYNTHESIS & REASONING (OPTIONAL)
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        with st.expander("AI Reasoning Settings", expanded=False):
+            st.caption("Configure OpenRouter API to enrich change impact justifications. Leave blank for 100% offline deterministic heuristic mode.")
+            openrouter_key = st.text_input(
+                "OpenRouter API Key",
+                type="password",
+                value=os.getenv("OPENROUTER_API_KEY", ""),
+                help="Optional key for OpenRouter models. If omitted, the offline deterministic rule engine runs with zero cost and zero latency.",
+            )
+            model_options = [
+                "nvidia/nemotron-3.5-lightning:free",
+                "meta-llama/llama-3.3-70b-instruct:free",
+                "google/gemini-2.0-flash",
+                "anthropic/claude-3.5-sonnet",
+                "openai/gpt-4o",
+                "Custom Model (type below)...",
+            ]
+            selected_model_choice = st.selectbox(
+                "AI Model",
+                model_options,
+                index=0,
+                help="Select an OpenRouter model or choose Custom to specify any model ID.",
+            )
+            if selected_model_choice == "Custom Model (type below)...":
+                openrouter_model = st.text_input(
+                    "Custom Model Identifier",
+                    value="nvidia/nemotron-3.5-lightning:free",
+                    help="Enter any valid OpenRouter model tag (e.g. nvidia/nemotron-3.5-lightning:free)",
+                ).strip()
+            else:
+                openrouter_model = selected_model_choice
+            enable_ai = st.checkbox(
+                "Enable AI Synthesis",
+                value=bool(openrouter_key.strip()),
+                help="Toggle between AI-enriched explanations and offline deterministic rules.",
+            )
 
-    # Sidebar: Optional AI Reasoning Settings (F05)
-    with st.sidebar.expander("🔑 AI Reasoning Settings (Optional)", expanded=False):
-        st.caption("Configure OpenRouter API to enrich change impact justifications. Leave blank for 100% offline deterministic heuristic mode.")
-        openrouter_key = st.text_input(
-            "OpenRouter API Key",
-            type="password",
-            value=os.getenv("OPENROUTER_API_KEY", ""),
-            help="Optional key for OpenRouter models. If omitted, the offline deterministic rule engine runs with zero cost and zero latency.",
-        )
-        model_options = [
-            "nvidia/nemotron-3.5-lightning:free",
-            "meta-llama/llama-3.3-70b-instruct:free",
-            "google/gemini-2.0-flash",
-            "anthropic/claude-3.5-sonnet",
-            "openai/gpt-4o",
-            "Custom Model (type below)...",
-        ]
-        selected_model_choice = st.selectbox(
-            "AI Model",
-            model_options,
-            index=0,
-            help="Select an OpenRouter model or choose Custom to specify any model ID.",
-        )
-        if selected_model_choice == "Custom Model (type below)...":
-            openrouter_model = st.text_input(
-                "Custom Model Identifier",
-                value="nvidia/nemotron-3.5-lightning:free",
-                help="Enter any valid OpenRouter model tag (e.g. nvidia/nemotron-3.5-lightning:free)",
-            ).strip()
-        else:
-            openrouter_model = selected_model_choice
-        enable_ai = st.checkbox(
-            "Enable AI Synthesis",
-            value=bool(openrouter_key.strip()),
-            help="Toggle between AI-enriched explanations and offline deterministic rules.",
-        )
-
-    # Observatory Top-Level Navigation
-    tab_intelligence, tab_version_diff, tab_impact_engine, tab_upgrade_planner = st.tabs([
-        "🔬 Code Intelligence & Dependency Graph (F02/F03)",
-        "⚡ Version & Change Analyzer (F04)",
-        "🎯 Impact & Risk Analysis Engine (F05)",
-        "📋 Upgrade Planner (F07)",
+    # Observatory Top-Level Navigation - True Segmented Brutalist Tab Tiles
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "Code Intelligence",
+        "Version Analyzer",
+        "Impact & Risk",
+        "Upgrade Planner",
     ])
+    tab_intelligence, tab_version_diff, tab_impact_engine, tab_upgrade_planner = tab1, tab2, tab3, tab4
 
     with tab_intelligence:
-        # Analysis Control Panel
-        st.subheader("Repository Code Analysis Control")
-        col1, col2, col3 = st.columns([2, 2, 1])
+        # Framed Analysis Execution Control Panel
+        with st.container(border=True):
+            st.markdown(
+                """
+                <div style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1.2px; font-weight: 800; color: var(--nb-text-muted); margin-bottom: 2px;">
+                  Analysis Execution Control
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            st.subheader("Repository Code Analysis Control")
+            st.caption("Trigger full AST symbol extraction, structural relationship mapping, and graph ingestion for the target commit.")
 
-        with col1:
-            target_ref = st.text_input("Target Ref / Commit SHA (optional)", value="HEAD", key="f02_target_ref")
-        with col2:
-            exclude_patterns_str = st.text_input("Exclude Patterns (comma-separated)", value="tests/*, docs/*", key="f02_exclude")
-        with col3:
-            st.write("")
-            st.write("")
-            trigger_btn = st.button("🚀 Analyze Repository", type="primary", use_container_width=True)
+            col1, col2, col3 = st.columns([2, 2, 1])
+            with col1:
+                target_ref = st.text_input("Target Ref / Commit SHA (optional)", value="HEAD", key="f02_target_ref")
+            with col2:
+                exclude_patterns_str = st.text_input("Exclude Patterns (comma-separated)", value="tests/*, docs/*", key="f02_exclude")
+            with col3:
+                st.write("")
+                st.write("")
+                trigger_btn = st.button("Analyze Repository", type="primary", use_container_width=True)
 
         if trigger_btn:
             patterns = [p.strip() for p in exclude_patterns_str.split(",") if p.strip()]
@@ -1477,7 +2000,7 @@ def run_app() -> None:
 
                 # Exploration Tabs
                 tab_entities, tab_relationships, tab_graph, tab_diagnostics = st.tabs(
-                    ["🧩 Discovered Entities", "🔗 Structural Relationships", "🌐 Dependency Graph (Neo4j)", "⚠️ Diagnostics"]
+                    ["Entities", "Relationships", "Dependency Graph", "Diagnostics"]
                 )
 
                 with tab_entities:
@@ -1497,7 +2020,7 @@ def run_app() -> None:
                         st.info("No relationships found.")
 
                 with tab_graph:
-                    st.markdown("#### 🌐 Interactive Dependency Graph Explorer")
+                    st.markdown("#### Interactive Dependency Graph Explorer")
                     st.caption("Force-directed interactive visual graph. Drag nodes, zoom, or hover to inspect symbol details.")
                     
                     g_nodes_code, g_nodes_data = make_api_request(f"{api_url}/analyses/{active_run_id}/graph/nodes?limit=1500")
@@ -1510,7 +2033,7 @@ def run_app() -> None:
                         render_graph_canvas(g_nodes, g_rels)
                     else:
                         st.info("No graph nodes returned yet. Neo4j may still be building the graph.")
-                        if st.button("🔨 Build / Rebuild Graph in Neo4j", type="secondary"):
+                        if st.button("Build / Rebuild Graph in Neo4j", type="secondary"):
                             build_code, build_res = make_api_request(
                                 f"{api_url}/analyses/{active_run_id}/graph/build",
                                 method="POST",
@@ -1522,9 +2045,9 @@ def run_app() -> None:
                             else:
                                 st.error(f"Failed to trigger graph build: {build_res}")
 
-                    st.info("💡 You can also run custom Cypher queries in the dedicated [Neo4j Browser](http://localhost:7474) (user: `neo4j` / pass: `password`).")
+                    st.info("You can also run custom Cypher queries in the dedicated [Neo4j Browser](http://localhost:7474) (user: `neo4j` / pass: `password`).")
 
-                    with st.expander(f"📋 Raw Graph Data ({len(g_nodes)} Nodes, {len(g_rels)} Relationships)"):
+                    with st.expander(f"Raw Graph Data ({len(g_nodes)} Nodes, {len(g_rels)} Relationships)"):
                         g_col1, g_col2 = st.columns(2)
                         with g_col1:
                             st.markdown(f"**Graph Nodes ({len(g_nodes)})**")
@@ -1547,54 +2070,62 @@ def run_app() -> None:
                 status_placeholder.error(f"Analysis FAILED: {run_record.get('error_message')}")
 
     with tab_version_diff:
-        st.subheader("⚡ Version & Change Impact Analyzer (F04)")
-        st.caption("Compare Git branches, commits, or pull request revisions to detect code symbol deltas, breaking changes, and blast radius.")
+        with st.container(border=True):
+            st.markdown(
+                """
+                <div style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1.2px; font-weight: 800; color: var(--nb-text-muted); margin-bottom: 2px;">
+                  Version & Change Impact Engine
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            col_b1, col_b2 = st.columns([5, 1])
+            with col_b1:
+                st.subheader("Version & Change Impact Analyzer (F04)")
+                st.caption("Compare Git branches, commits, or pull request revisions to detect code symbol deltas, breaking changes, and blast radius.")
+            with col_b2:
+                st.write("")
+                refresh_branches = st.button("Sync Git", help="Fetch latest branches from Git remote", use_container_width=True)
+            
+            b_code, b_data = make_api_request(f"{api_url}/repositories/{selected_repo_id}/branches")
+            branches_list = b_data.get("branches", ["main"]) if b_code == 200 and b_data else ["main"]
+            default_branch = b_data.get("default_branch", "main") if b_code == 200 and b_data else "main"
 
-        # Fetch branches from backend with refresh capability
-        col_b1, col_b2 = st.columns([5, 1])
-        with col_b2:
-            st.write("")
-            refresh_branches = st.button("🔄 Sync Git", help="Fetch latest branches from Git remote")
-        
-        b_code, b_data = make_api_request(f"{api_url}/repositories/{selected_repo_id}/branches")
-        branches_list = b_data.get("branches", ["main"]) if b_code == 200 and b_data else ["main"]
-        default_branch = b_data.get("default_branch", "main") if b_code == 200 and b_data else "main"
+            diff_mode = st.radio(
+                "Comparison Mode",
+                ["Branch vs Branch", "Quick 2-Commit Diff (Branch~1 vs Branch)", "Custom Commit Range"],
+                horizontal=True,
+            )
 
-        diff_mode = st.radio(
-            "Comparison Mode",
-            ["🌿 Branch vs Branch", "⏱️ Quick 2-Commit Diff (Branch~1 vs Branch)", "🎯 Custom Commit Range"],
-            horizontal=True,
-        )
+            d_col1, d_col2, d_col3 = st.columns([2, 2, 1])
 
-        d_col1, d_col2, d_col3 = st.columns([2, 2, 1])
+            if diff_mode == "Branch vs Branch":
+                with d_col1:
+                    base_branch = st.selectbox("Base Branch (e.g. main/production)", options=branches_list, index=0)
+                with d_col2:
+                    target_idx = 1 if len(branches_list) > 1 else 0
+                    target_branch = st.selectbox("Target Branch (e.g. feature/bugfix)", options=branches_list, index=target_idx)
+                base_ref_val = base_branch
+                target_ref_val = target_branch
+            elif diff_mode == "Quick 2-Commit Diff (Branch~1 vs Branch)":
+                with d_col1:
+                    def_idx = branches_list.index(default_branch) if default_branch in branches_list else 0
+                    quick_branch = st.selectbox("Select Branch to Diff (Last 2 Commits)", options=branches_list, index=def_idx)
+                with d_col2:
+                    st.text_input("Base Revision", value=f"{quick_branch}~1", disabled=True)
+                    st.text_input("Target Revision", value=f"{quick_branch}", disabled=True)
+                base_ref_val = f"{quick_branch}~1"
+                target_ref_val = quick_branch
+            else:
+                with d_col1:
+                    base_ref_val = st.text_input("Base Commit SHA / Branch / Tag", value="HEAD~1")
+                with d_col2:
+                    target_ref_val = st.text_input("Target Commit SHA / Branch / Tag", value="HEAD")
 
-        if diff_mode == "🌿 Branch vs Branch":
-            with d_col1:
-                base_branch = st.selectbox("Base Branch (e.g. main/production)", options=branches_list, index=0)
-            with d_col2:
-                target_idx = 1 if len(branches_list) > 1 else 0
-                target_branch = st.selectbox("Target Branch (e.g. feature/bugfix)", options=branches_list, index=target_idx)
-            base_ref_val = base_branch
-            target_ref_val = target_branch
-        elif diff_mode == "⏱️ Quick 2-Commit Diff (Branch~1 vs Branch)":
-            with d_col1:
-                def_idx = branches_list.index(default_branch) if default_branch in branches_list else 0
-                quick_branch = st.selectbox("Select Branch to Diff (Last 2 Commits)", options=branches_list, index=def_idx)
-            with d_col2:
-                st.text_input("Base Revision", value=f"{quick_branch}~1", disabled=True)
-                st.text_input("Target Revision", value=f"{quick_branch}", disabled=True)
-            base_ref_val = f"{quick_branch}~1"
-            target_ref_val = quick_branch
-        else:
-            with d_col1:
-                base_ref_val = st.text_input("Base Commit SHA / Branch / Tag", value="HEAD~1")
-            with d_col2:
-                target_ref_val = st.text_input("Target Commit SHA / Branch / Tag", value="HEAD")
-
-        with d_col3:
-            st.write("")
-            st.write("")
-            run_diff_btn = st.button("⚡ Run Change Analysis", type="primary", use_container_width=True)
+            with d_col3:
+                st.write("")
+                st.write("")
+                run_diff_btn = st.button("Run Change Analysis", type="primary", use_container_width=True)
 
         if run_diff_btn:
             with st.spinner("Analyzing semantic changes, signature alterations, and blast radius..."):
@@ -1622,34 +2153,34 @@ def run_app() -> None:
 
                 # Risk Level Banner & Metrics
                 risk_lvl = d_detail.get("risk_level", "LOW")
+                is_dark_mode = theme_mode == "Dark"
                 risk_colors = {
-                    "CRITICAL": "#ef4444",
-                    "HIGH": "#f97316",
-                    "MEDIUM": "#eab308",
-                    "LOW": "#10b981",
+                    "CRITICAL": "#ef4444" if is_dark_mode else "#dc2626",
+                    "HIGH": "#f97316" if is_dark_mode else "#ea580c",
+                    "MEDIUM": "#f59e0b" if is_dark_mode else "#d97706",
+                    "LOW": "#22c55e" if is_dark_mode else "#16a34a",
                 }
-                r_color = risk_colors.get(risk_lvl, "#10b981")
+                r_color = risk_colors.get(risk_lvl, "#16a34a")
+                border_color = r_color if risk_lvl in ("CRITICAL", "HIGH") else "var(--nb-border)"
 
-                st.markdown(
-                    f"""
-                    <div style="background: linear-gradient(135deg, rgba(15,23,42,0.9), rgba(30,41,59,0.9)); border: 1px solid {r_color}; border-radius: 12px; padding: 18px; margin-bottom: 20px; box-shadow: 0 0 25px {r_color}33;">
-                      <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div>
-                          <span style="font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1.5px; color: #94a3b8; font-weight: 600;">Overall Change Impact Risk</span>
-                          <h2 style="margin: 4px 0 0 0; color: {r_color}; font-size: 1.9rem; font-weight: 800; letter-spacing: 0.5px;">{risk_lvl} RISK</h2>
-                          <div style="font-size: 0.85rem; color: #cbd5e1; margin-top: 6px;">
-                            Comparing <code>{d_detail.get('base_ref')}</code> ({d_detail.get('base_commit_hash', '')[:7]}) ➜ <code>{d_detail.get('target_ref')}</code> ({d_detail.get('target_commit_hash', '')[:7]})
-                          </div>
-                        </div>
-                        <div style="background: {r_color}22; border: 1px solid {r_color}; border-radius: 8px; padding: 10px 18px; text-align: right;">
-                          <div style="font-size: 1.6rem; font-weight: 800; color: {r_color};">{d_detail['summary'].get('total_breaking_changes', 0)}</div>
-                          <div style="font-size: 0.75rem; text-transform: uppercase; color: #cbd5e1; font-weight: 600;">Breaking Changes</div>
-                        </div>
+                diff_banner_html = f"""
+                <div style="background: var(--nb-surface); border: 2px solid {border_color}; border-left: 8px solid {r_color}; border-radius: 2px; padding: 18px 22px; margin-bottom: 20px; box-shadow: var(--nb-shadow-lg);">
+                  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
+                    <div>
+                      <span style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1.5px; color: var(--nb-text-muted); font-weight: 800; font-family: 'Inter', sans-serif;">Overall Change Impact Risk</span>
+                      <h2 style="margin: 4px 0 0 0; color: {r_color}; font-size: 1.9rem; font-weight: 800; letter-spacing: 0.5px; font-family: 'Inter', sans-serif;">{risk_lvl} RISK</h2>
+                      <div style="font-size: 0.85rem; color: var(--nb-text-muted); margin-top: 6px; font-family: 'JetBrains Mono', monospace;">
+                        Comparing <code>{d_detail.get('base_ref')}</code> ({d_detail.get('base_commit_hash', '')[:7]}) ➜ <code>{d_detail.get('target_ref')}</code> ({d_detail.get('target_commit_hash', '')[:7]})
                       </div>
                     </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
+                    <div style="background: var(--nb-surface); border: 2px solid var(--nb-border); border-radius: 2px; padding: 10px 18px; text-align: right; box-shadow: var(--nb-shadow-sm);">
+                      <div style="font-size: 1.6rem; font-weight: 800; color: {r_color}; font-family: 'JetBrains Mono', monospace;">{d_detail['summary'].get('total_breaking_changes', 0)}</div>
+                      <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--nb-text-muted); font-weight: 700;">Breaking Changes</div>
+                    </div>
+                  </div>
+                </div>
+                """
+                render_html(diff_banner_html)
 
                 summ = d_detail.get("summary", {})
                 rc1, rc2, rc3, rc4, rc5 = st.columns(5)
@@ -1661,14 +2192,14 @@ def run_app() -> None:
 
                 # Subtabs
                 tab_blast, tab_breaking, tab_files, tab_commits = st.tabs([
-                    "🌐 Visual Impact Graph & Blast Radius",
-                    "💥 Breaking Changes & Symbol Deltas",
-                    "📁 File Diffs & Hunks",
-                    "📜 Commit Log",
+                    "Impact Graph",
+                    "Breaking Changes",
+                    "File Diffs",
+                    "Commit Log",
                 ])
 
                 with tab_blast:
-                    st.markdown("#### 🌐 Change Propagation & Impact Graph")
+                    st.markdown("#### Change Propagation & Impact Graph")
                     st.caption("Interactive force-directed graph tracking altered code symbols, breaking changes, and all affected downstream callers across the repository.")
 
                     impact_graph_json = build_impact_graph_json(d_detail)
@@ -1686,7 +2217,7 @@ def run_app() -> None:
                         )
                     with col_g2:
                         st.download_button(
-                            label="📥 Download Graph JSON",
+                            label="Download Graph JSON",
                             data=json.dumps(impact_graph_json, indent=2),
                             file_name=f"trace_impact_graph_{active_diff_id[:8]}.json",
                             mime="application/json",
@@ -1698,17 +2229,17 @@ def run_app() -> None:
                     if graph_nodes:
                         render_impact_graph_canvas(d_detail)
                     elif sym_count == 0:
-                        st.info("ℹ️ **Zero code symbols (functions, classes, endpoints) were modified in this changeset.** All changes were in non-code or documentation files, so no code nodes or graph dependencies are affected.")
+                        st.info("Zero code symbols (functions, classes, endpoints) were modified in this changeset. All changes were in non-code or documentation files, so no code nodes or graph dependencies are affected.")
                     else:
-                        st.success("✅ **Zero downstream callers or dependents are impacted.** The modified symbols are self-contained with no incoming references in the repository graph.")
+                        st.success("Zero downstream callers or dependents are impacted. The modified symbols are self-contained with no incoming references in the repository graph.")
 
                     # Downstream Callers Table
                     if blast_items:
-                        st.markdown(f"#### 💥 {len(blast_items)} Impacted Downstream Component(s)")
+                        st.markdown(f"#### {len(blast_items)} Impacted Downstream Components")
                         st.dataframe(blast_items, use_container_width=True)
 
                     # Expandable JSON Viewer for full transparency
-                    with st.expander("📋 View Complete Change Impact Graph JSON"):
+                    with st.expander("View Complete Change Impact Graph JSON"):
                         st.json(impact_graph_json)
 
                 with tab_breaking:
@@ -1717,58 +2248,68 @@ def run_app() -> None:
                     non_breaking_syms = [s for s in sym_diffs if not s.get("is_breaking")]
 
                     if breaking_syms:
-                        st.markdown(f"#### ⚠️ {len(breaking_syms)} Breaking Change(s) Detected")
+                        st.markdown(f"#### {len(breaking_syms)} Breaking Changes Detected")
                         for bs in breaking_syms:
                             with st.container():
-                                st.markdown(
-                                    f"""
-                                    <div style="background: rgba(239, 68, 68, 0.1); border-left: 4px solid #ef4444; padding: 12px 16px; border-radius: 0 8px 8px 0; margin-bottom: 12px;">
-                                      <div style="display: flex; justify-content: space-between;">
-                                        <strong style="color: #fca5a5; font-size: 1rem;">[{bs.get('kind', '').upper()}] {bs.get('qualified_name')}</strong>
-                                        <span style="background: #ef4444; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold;">BREAKING</span>
-                                      </div>
-                                      <div style="color: #fecaca; margin-top: 6px; font-size: 0.9rem;"><strong>Reason:</strong> {bs.get('breaking_reason', 'Signature altered incompatibly')}</div>
-                                      <div style="margin-top: 8px; font-family: monospace; font-size: 0.85rem; color: #94a3b8;">
-                                        <div><span style="color: #ef4444;">- Old:</span> {bs.get('old_signature') or 'None (Added)'}</div>
-                                        <div><span style="color: #10b981;">+ New:</span> {bs.get('new_signature') or 'None (Deleted)'}</div>
-                                      </div>
-                                      <div style="font-size: 0.75rem; color: #64748b; margin-top: 4px;">File: {bs.get('file_path')}</div>
-                                    </div>
-                                    """,
-                                    unsafe_allow_html=True,
-                                 )
+                                breaking_card_html = f"""
+                                <div style="background: var(--nb-surface); border: 2px solid #dc2626; border-left: 6px solid #dc2626; padding: 14px 16px; border-radius: 2px; margin-bottom: 12px; box-shadow: var(--nb-shadow);">
+                                  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
+                                    <strong style="color: var(--nb-text); font-size: 1rem; font-family: 'JetBrains Mono', monospace;">[{html.escape(bs.get('kind', '').upper())}] {html.escape(bs.get('qualified_name', ''))}</strong>
+                                    <span style="background: #dc2626; color: #FFFFFF; border: 1.5px solid var(--nb-border); padding: 2px 8px; border-radius: 2px; font-size: 0.75rem; font-weight: 800; font-family: 'JetBrains Mono', monospace;">BREAKING</span>
+                                  </div>
+                                  <div style="color: var(--nb-text); margin-top: 6px; font-size: 0.9rem;"><strong>Reason:</strong> {html.escape(bs.get('breaking_reason', 'Signature altered incompatibly'))}</div>
+                                  <div style="margin-top: 8px; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; background: var(--nb-code-bg); border: 1px solid var(--nb-border); padding: 8px 10px; border-radius: 2px;">
+                                    <div><span style="color: #dc2626; font-weight: 700;">- Old:</span> {html.escape(bs.get('old_signature') or 'None (Added)')}</div>
+                                    <div><span style="color: #16a34a; font-weight: 700;">+ New:</span> {html.escape(bs.get('new_signature') or 'None (Deleted)')}</div>
+                                  </div>
+                                  <div style="font-size: 0.75rem; color: var(--nb-text-muted); margin-top: 6px; font-family: 'JetBrains Mono', monospace;">File: {html.escape(bs.get('file_path', ''))}</div>
+                                </div>
+                                """
+                                render_html(breaking_card_html)
                     else:
-                        st.success("✅ Zero breaking changes detected between these revisions.")
+                        st.success("Zero breaking changes detected between these revisions.")
 
                     if non_breaking_syms:
-                        st.markdown(f"#### 🔄 {len(non_breaking_syms)} Non-Breaking Symbol Modification(s)")
+                        st.markdown(f"#### {len(non_breaking_syms)} Non-Breaking Symbol Modifications")
                         st.dataframe(non_breaking_syms, use_container_width=True)
 
                 with tab_files:
-                    st.markdown("#### 📁 File-Level Diffs")
+                    st.markdown("#### File-Level Diffs")
                     f_diffs = d_detail.get("file_diffs", [])
                     if f_diffs:
                         for fd in f_diffs:
                             c_type = fd.get("change_type", "MODIFIED")
-                            path_disp = fd.get("new_path") or fd.get("old_path")
+                            path_disp = fd.get("new_path") or fd.get("old_path") or "unknown"
                             ins = fd.get("insertions", 0)
                             dels = fd.get("deletions", 0)
-                            
-                            type_icon = {
-                                "ADDED": "🟢 ADDED",
-                                "DELETED": "🔴 DELETED",
-                                "MODIFIED": "🟡 MODIFIED",
-                                "RENAMED": "🟣 RENAMED",
-                            }.get(c_type, c_type)
 
-                            with st.expander(f"{type_icon}: `{path_disp}`  |  +{ins} / -{dels} lines"):
+                            badge_config = {
+                                "MODIFIED": {"bg": "#FACC15", "text": "#000000", "label": "MODIFIED"},
+                                "ADDED": {"bg": "#16A34A", "text": "#FFFFFF", "label": "ADDED"},
+                                "DELETED": {"bg": "#DC2626", "text": "#FFFFFF", "label": "DELETED"},
+                                "RENAMED": {"bg": "#2563EB", "text": "#FFFFFF", "label": "RENAMED"},
+                            }.get(c_type, {"bg": "#FACC15", "text": "#000000", "label": c_type})
+
+                            file_bar_html = f"""
+                            <div style="background: var(--nb-surface); border: 2px solid var(--nb-border); border-radius: 2px; padding: 10px 14px; margin-top: 10px; margin-bottom: 6px; box-shadow: var(--nb-shadow); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                              <div style="display: flex; align-items: center; gap: 10px;">
+                                <span style="background: {badge_config['bg']}; color: {badge_config['text']}; border: 1.5px solid var(--nb-border); border-radius: 2px; font-size: 0.72rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; padding: 2px 8px; text-transform: uppercase;">{badge_config['label']}</span>
+                                <code style="font-size: 0.92rem; font-weight: 700; color: var(--nb-text); background: transparent; border: none; padding: 0;">{path_disp}</code>
+                              </div>
+                              <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; font-weight: 700;">
+                                <span style="color: #16a34a;">+{ins}</span> <span style="color: #dc2626;">-{dels}</span>
+                              </div>
+                            </div>
+                            """
+                            render_html(file_bar_html)
+                            with st.expander(f"Diff: {path_disp}", expanded=True):
                                 diff_html = render_colored_diff(fd)
-                                st.markdown(diff_html, unsafe_allow_html=True)
+                                render_html(diff_html)
                     else:
                         st.info("No file diffs recorded.")
 
                 with tab_commits:
-                    st.markdown("#### 📜 Commits in Changeset")
+                    st.markdown("#### Commits in Changeset")
                     msgs = d_detail.get("commit_messages", [])
                     if msgs:
                         for idx, m in enumerate(msgs, 1):
@@ -1777,7 +2318,7 @@ def run_app() -> None:
                         st.info("No commit messages retrieved for this comparison.")
 
     with tab_impact_engine:
-        st.subheader("🎯 Transformation Risk & Behavioral Impact Propagation Engine (F05)")
+        st.subheader("Transformation Risk & Behavioral Impact Propagation Engine (F05)")
         st.caption(
             "Bridges Git Diff hunks with AST scopes, evaluates multi-hop blast radius across inverted call graphs ($G^T$), "
             "infers diff syntax deltas (def/return/raise), and synthesizes actionable remediation checklists."
@@ -1785,18 +2326,20 @@ def run_app() -> None:
 
         # Mode indicator badge
         if enable_ai and openrouter_key.strip():
-            mode_badge = f"""<div style="background: rgba(147, 51, 234, 0.15); border: 1px solid #c084fc; border-radius: 8px; padding: 8px 14px; margin-bottom: 16px; display: inline-flex; align-items: center; gap: 8px;">
-                <span style="font-size: 14px;">🤖</span>
-                <span style="font-size: 0.85rem; font-weight: 600; color: #e9d5ff;">Mode: AI-Enriched Synthesis</span>
-                <span style="background: #9333ea; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-family: monospace;">{openrouter_model}</span>
-            </div>"""
+            mode_badge_html = f"""
+            <div style="background: var(--nb-surface); border: 2px solid var(--nb-border); border-radius: 2px; padding: 6px 14px; margin-bottom: 16px; display: inline-flex; align-items: center; gap: 8px; box-shadow: var(--nb-shadow-sm);">
+                <span style="font-size: 0.85rem; font-weight: 700; color: var(--nb-text); font-family: 'Inter', sans-serif;">Mode: AI-Enriched Synthesis</span>
+                <span style="background: #7c3aed; color: #ffffff; border: 1px solid var(--nb-border); padding: 2px 8px; border-radius: 2px; font-size: 0.75rem; font-family: 'JetBrains Mono', monospace; font-weight: 700;">{openrouter_model}</span>
+            </div>
+            """
         else:
-            mode_badge = """<div style="background: rgba(16, 185, 129, 0.15); border: 1px solid #34d399; border-radius: 8px; padding: 8px 14px; margin-bottom: 16px; display: inline-flex; align-items: center; gap: 8px;">
-                <span style="font-size: 14px;">⚡</span>
-                <span style="font-size: 0.85rem; font-weight: 600; color: #a7f3d0;">Mode: Deterministic Heuristic Engine</span>
-                <span style="background: #059669; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">100% Offline · Zero Latency & Cost</span>
-            </div>"""
-        st.markdown(mode_badge, unsafe_allow_html=True)
+            mode_badge_html = """
+            <div style="background: var(--nb-surface); border: 2px solid var(--nb-border); border-radius: 2px; padding: 6px 14px; margin-bottom: 16px; display: inline-flex; align-items: center; gap: 8px; box-shadow: var(--nb-shadow-sm);">
+                <span style="font-size: 0.85rem; font-weight: 700; color: var(--nb-text); font-family: 'Inter', sans-serif;">Mode: Deterministic Heuristic Engine</span>
+                <span style="background: #16a34a; color: #ffffff; border: 1px solid var(--nb-border); padding: 2px 8px; border-radius: 2px; font-size: 0.75rem; font-weight: 700; font-family: 'JetBrains Mono', monospace;">100% Offline · Zero Latency</span>
+            </div>
+            """
+        render_html(mode_badge_html)
 
         col_i1, col_i2, col_i3 = st.columns([2, 2, 1])
         with col_i1:
@@ -1806,7 +2349,7 @@ def run_app() -> None:
         with col_i3:
             st.write("")
             st.write("")
-            run_impact_btn = st.button("🚀 Evaluate Impact & Risk", type="primary", use_container_width=True)
+            run_impact_btn = st.button("Evaluate Impact & Risk", type="primary", use_container_width=True)
 
         if run_impact_btn:
             with st.spinner("Executing mathematical interval intersection, transposed BFS blast radius, and delta inference..."):
@@ -1840,42 +2383,42 @@ def run_app() -> None:
             risk_meta = active_impact.get("risk_analysis", {})
             risk_lvl = risk_meta.get("risk_level", "LOW")
 
+            is_dark_mode = theme_mode == "Dark"
             risk_colors = {
-                "CRITICAL": "#ef4444",
-                "HIGH": "#f97316",
-                "MEDIUM": "#eab308",
-                "LOW": "#10b981",
+                "CRITICAL": "#ef4444" if is_dark_mode else "#dc2626",
+                "HIGH": "#f97316" if is_dark_mode else "#ea580c",
+                "MEDIUM": "#f59e0b" if is_dark_mode else "#d97706",
+                "LOW": "#22c55e" if is_dark_mode else "#16a34a",
             }
-            r_col = risk_colors.get(risk_lvl, "#10b981")
+            r_col = risk_colors.get(risk_lvl, "#16a34a")
+            border_col = r_col if risk_lvl in ("CRITICAL", "HIGH") else "var(--nb-border)"
 
             # Risk Summary Header Banner
-            st.markdown(
-                f"""
-                <div style="background: linear-gradient(135deg, rgba(15,23,42,0.95), rgba(30,41,59,0.95)); border: 1px solid {r_col}; border-radius: 12px; padding: 20px; margin-bottom: 22px; box-shadow: 0 0 30px {r_col}33;">
-                  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
-                    <div>
-                      <div style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1.5px; color: #94a3b8; font-weight: 600;">Architectural Risk Assessment</div>
-                      <h2 style="margin: 4px 0 0 0; color: {r_col}; font-size: 2.1rem; font-weight: 800; letter-spacing: 0.5px;">{risk_lvl} RISK</h2>
-                      <div style="font-size: 0.85rem; color: #cbd5e1; margin-top: 6px;">
-                        Comparing <code>{meta.get('base_commit', '')[:7]}</code> ➜ <code>{meta.get('current_commit', '')[:7]}</code>
-                        &bull; Reasoning Mode: <strong>{meta.get('reasoning_mode', 'HEURISTIC')}</strong>
-                      </div>
-                    </div>
-                    <div style="display: flex; gap: 12px;">
-                      <div style="background: {r_col}22; border: 1px solid {r_col}; border-radius: 8px; padding: 8px 16px; text-align: center;">
-                        <div style="font-size: 1.5rem; font-weight: 800; color: {r_col};">{meta.get('total_callers_at_risk', 0)}</div>
-                        <div style="font-size: 0.72rem; text-transform: uppercase; color: #cbd5e1; font-weight: 600;">Callers At Risk</div>
-                      </div>
-                      <div style="background: rgba(56, 189, 248, 0.15); border: 1px solid #38bdf8; border-radius: 8px; padding: 8px 16px; text-align: center;">
-                        <div style="font-size: 1.5rem; font-weight: 800; color: #38bdf8;">{meta.get('total_impacted_downstream_files', 0)}</div>
-                        <div style="font-size: 0.72rem; text-transform: uppercase; color: #cbd5e1; font-weight: 600;">Downstream Files</div>
-                      </div>
-                    </div>
+            risk_banner_html = f"""
+            <div style="background: var(--nb-surface); border: 2px solid {border_col}; border-left: 8px solid {r_col}; border-radius: 2px; padding: 20px 22px; margin-bottom: 22px; box-shadow: var(--nb-shadow-lg);">
+              <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
+                <div>
+                  <div style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1.5px; color: var(--nb-text-muted); font-weight: 800; font-family: 'Inter', sans-serif;">ARCHITECTURAL RISK ASSESSMENT</div>
+                  <h2 style="margin: 4px 0 0 0; color: {r_col}; font-size: 2rem; font-weight: 800; letter-spacing: 0.5px; font-family: 'Inter', sans-serif;">{risk_lvl} RISK</h2>
+                  <div style="font-size: 0.85rem; color: var(--nb-text-muted); margin-top: 6px; font-family: 'JetBrains Mono', monospace;">
+                    Comparing <code>{meta.get('base_commit', '')[:7]}</code> ➜ <code>{meta.get('current_commit', '')[:7]}</code>
+                    &bull; Reasoning Mode: <strong>{meta.get('reasoning_mode', 'HEURISTIC')}</strong>
                   </div>
                 </div>
-                """,
-                unsafe_allow_html=True,
-            )
+                <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                  <div style="background: var(--nb-surface); border: 2px solid var(--nb-border); border-radius: 2px; padding: 8px 16px; text-align: center; box-shadow: var(--nb-shadow-sm);">
+                    <div style="font-size: 1.5rem; font-weight: 800; color: {r_col}; font-family: 'JetBrains Mono', monospace;">{meta.get('total_callers_at_risk', 0)}</div>
+                    <div style="font-size: 0.72rem; text-transform: uppercase; color: var(--nb-text-muted); font-weight: 700;">Callers At Risk</div>
+                  </div>
+                  <div style="background: var(--nb-surface); border: 2px solid var(--nb-border); border-radius: 2px; padding: 8px 16px; text-align: center; box-shadow: var(--nb-shadow-sm);">
+                    <div style="font-size: 1.5rem; font-weight: 800; color: var(--nb-accent-blue); font-family: 'JetBrains Mono', monospace;">{meta.get('total_impacted_downstream_files', 0)}</div>
+                    <div style="font-size: 0.72rem; text-transform: uppercase; color: var(--nb-text-muted); font-weight: 700;">Downstream Files</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            """
+            render_html(risk_banner_html)
 
             # Metric Cards
             m_col1, m_col2, m_col3, m_col4 = st.columns(4)
@@ -1889,45 +2432,42 @@ def run_app() -> None:
             if ai_dir:
                 where_items = "".join(f"<li><code>{loc}</code></li>" for loc in ai_dir.get("where_to_change", [])) or "<li>All direct callers identified below</li>"
                 what_items = "".join(f"<li>{act}</li>" for act in ai_dir.get("what_to_change", [])) or "<li>Verify and test call sites</li>"
-                st.markdown(
-                    f"""
-                    <div style="background: linear-gradient(135deg, rgba(88, 28, 135, 0.25), rgba(30, 27, 75, 0.4)); border: 1px solid #a855f7; border-radius: 10px; padding: 16px 20px; margin-top: 14px; margin-bottom: 20px;">
-                      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-                        <span style="font-size: 1.2rem;">🤖</span>
-                        <span style="font-size: 1.05rem; font-weight: 700; color: #f3e8ff;">AI Remediation Directive: Where & What to Change</span>
-                      </div>
-                      <div style="font-size: 0.92rem; color: #e9d5ff; margin-bottom: 12px; font-weight: 500;">
-                        {ai_dir.get("executive_summary", "")}
-                      </div>
-                      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                        <div style="background: rgba(0,0,0,0.25); border-radius: 6px; padding: 10px 14px;">
-                          <strong style="color: #c084fc; font-size: 0.85rem; text-transform: uppercase;">📍 Where to Change:</strong>
-                          <ul style="margin: 6px 0 0 0; padding-left: 20px; font-size: 0.85rem; color: #cbd5e1;">
-                            {where_items}
-                          </ul>
-                        </div>
-                        <div style="background: rgba(0,0,0,0.25); border-radius: 6px; padding: 10px 14px;">
-                          <strong style="color: #38bdf8; font-size: 0.85rem; text-transform: uppercase;">🛠️ What to Change:</strong>
-                          <ul style="margin: 6px 0 0 0; padding-left: 20px; font-size: 0.85rem; color: #cbd5e1;">
-                            {what_items}
-                          </ul>
-                        </div>
-                      </div>
+                ai_dir_html = f"""
+                <div style="background: var(--nb-surface); border: 2px solid var(--nb-border); border-top: 6px solid #7c3aed; border-radius: 2px; padding: 18px 20px; margin-top: 14px; margin-bottom: 20px; box-shadow: var(--nb-shadow-lg);">
+                  <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                    <span style="font-size: 1.05rem; font-weight: 800; color: var(--nb-text); font-family: 'Inter', sans-serif;">AI Remediation Directive: Where & What to Change</span>
+                  </div>
+                  <div style="font-size: 0.92rem; color: var(--nb-text); margin-bottom: 14px; font-weight: 500;">
+                    {html.escape(ai_dir.get("executive_summary", ""))}
+                  </div>
+                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div style="background: var(--nb-code-bg); border: 1.5px solid var(--nb-border); border-radius: 2px; padding: 12px 14px; box-shadow: var(--nb-shadow-sm);">
+                      <strong style="color: var(--nb-text); font-size: 0.82rem; text-transform: uppercase; font-family: 'Inter', sans-serif; letter-spacing: 0.5px;">Where to Change:</strong>
+                      <ul style="margin: 6px 0 0 0; padding-left: 20px; font-size: 0.85rem; color: var(--nb-text);">
+                        {where_items}
+                      </ul>
                     </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
+                    <div style="background: var(--nb-code-bg); border: 1.5px solid var(--nb-border); border-radius: 2px; padding: 12px 14px; box-shadow: var(--nb-shadow-sm);">
+                      <strong style="color: var(--nb-text); font-size: 0.82rem; text-transform: uppercase; font-family: 'Inter', sans-serif; letter-spacing: 0.5px;">What to Change:</strong>
+                      <ul style="margin: 6px 0 0 0; padding-left: 20px; font-size: 0.85rem; color: var(--nb-text);">
+                        {what_items}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+                """
+                render_html(ai_dir_html)
 
             # Subtabs for F05
             t_graph, t_details, t_plan, t_json = st.tabs([
-                "🌐 Transposed Call Graph & Blast Radius",
-                "🔍 Detailed Entity Impacts & Synthesized Guidance",
-                "📋 Actionable Remediation Plan & CI/CD",
-                "📦 Complete 4-Key JSON Payload",
+                "Call Graph",
+                "Detailed Impacts",
+                "Remediation Plan",
+                "JSON Payload",
             ])
 
             with t_graph:
-                st.markdown("#### 🌳 Behavioral Impact Propagation Tree ($G^T$)")
+                st.markdown("#### Behavioral Impact Propagation Tree (G^T)")
                 st.caption("Visualizes altered code entities and their direct/multi-hop upstream callers traced via transposed BFS traversal.")
 
                 impact_data = active_impact.get("impact_analysis", {})
@@ -1943,41 +2483,39 @@ def run_app() -> None:
                         num_callers = len(callers)
                         ent_type = d.get("entity_type", "function").upper()
 
-                        badge_label = f"💥 {num_callers} Caller(s) At Risk" if num_callers > 0 else "✅ Isolated (0 Callers)"
+                        badge_label = f"{num_callers} Callers At Risk" if num_callers > 0 else "Isolated (0 Callers)"
 
-                        with st.expander(f"▼ {f_path}::{ent} (lines {lines[0]}-{lines[1]})  [{ent_type}]  —  {badge_label}", expanded=True):
+                        with st.expander(f"{f_path}::{ent} (lines {lines[0]}-{lines[1]}) [{ent_type}] — {badge_label}", expanded=True):
                             if callers:
-                                st.markdown(f"**↳ Impacts {len(callers)} Upstream Caller(s):**")
+                                st.markdown(f"**Impacts {len(callers)} Upstream Callers:**")
                                 for c in callers:
                                     dist = c.get("distance", 1)
                                     c_name = c.get("qualified_name", "")
                                     c_file = c.get("file_path", "")
                                     c_chain = c.get("call_chain", [])
 
-                                    dist_badge = "🔴 Direct Caller (Depth 1)" if dist == 1 else f"🟠 Transitive Caller (Depth {dist})"
+                                    dist_badge = "Direct Caller (Depth 1)" if dist == 1 else f"Transitive Caller (Depth {dist})"
                                     chain_str = " ➜ ".join(c_chain) if c_chain else f"{c_name} ➜ {ent}"
 
-                                    st.markdown(
-                                        f"""
-                                        <div style="background: rgba(15, 23, 42, 0.7); border-left: 3px solid #f59e0b; padding: 10px 14px; border-radius: 0 6px 6px 0; margin-bottom: 8px; border: 1px solid rgba(255,255,255,0.06); border-left: 3px solid #f59e0b;">
-                                          <div style="display: flex; justify-content: space-between; align-items: center;">
-                                            <span style="font-weight: 600; color: #f8fafc; font-size: 0.92rem;">↳ impacts: <code>{c_file}::{c_name}</code></span>
-                                            <span style="font-size: 0.75rem; background: rgba(245, 158, 11, 0.2); color: #fbbf24; padding: 2px 8px; border-radius: 4px; font-weight: 600;">{dist_badge}</span>
-                                          </div>
-                                          <div style="font-size: 0.8rem; color: #94a3b8; margin-top: 4px; font-family: monospace;">
-                                            Call Chain: <span style="color: #cbd5e1;">{chain_str}</span>
-                                          </div>
-                                        </div>
-                                        """,
-                                        unsafe_allow_html=True,
-                                    )
+                                    caller_card_html = f"""
+                                    <div style="background: var(--nb-surface); border: 1.5px solid var(--nb-border); border-left: 4px solid #f59e0b; padding: 10px 14px; border-radius: 2px; margin-bottom: 8px; box-shadow: var(--nb-shadow-sm);">
+                                      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
+                                        <span style="font-weight: 700; color: var(--nb-text); font-size: 0.9rem;">↳ impacts: <code>{html.escape(c_file)}::{html.escape(c_name)}</code></span>
+                                        <span style="font-size: 0.72rem; background: var(--nb-surface); border: 1px solid var(--nb-border); color: {'#dc2626' if dist == 1 else '#d97706'}; padding: 2px 8px; border-radius: 2px; font-weight: 800; font-family: 'JetBrains Mono', monospace;">{dist_badge}</span>
+                                      </div>
+                                      <div style="font-size: 0.8rem; color: var(--nb-text-muted); margin-top: 4px; font-family: 'JetBrains Mono', monospace;">
+                                        Call Chain: <span style="color: var(--nb-text); font-weight: 600;">{html.escape(chain_str)}</span>
+                                      </div>
+                                    </div>
+                                    """
+                                    render_html(caller_card_html)
                             else:
-                                st.markdown("<div style='color: #10b981; font-size: 0.88rem; padding: 6px 0;'>↳ ✅ <em>No upstream callers invoke this modified entity directly or transitively.</em></div>", unsafe_allow_html=True)
+                                render_html("<div style='color: #16a34a; font-size: 0.88rem; padding: 6px 0; font-weight: 700; font-family: \"JetBrains Mono\", Consolas, monospace;'>↳ No upstream callers invoke this modified entity directly or transitively.</div>")
 
                             # Downstream non-code files
                             other_downstream = [f for f in downstream if f != f_path]
                             if other_downstream:
-                                st.caption("📁 **Referenced in Non-Code Files:**")
+                                st.caption("**Referenced in Non-Code Files:**")
                                 st.write(", ".join(f"`{f}`" for f in other_downstream))
                 else:
                     st.info("No code symbols modified in this changeset.")
@@ -1986,15 +2524,15 @@ def run_app() -> None:
                 dep_graph = active_impact.get("dependency_graph", {})
                 mermaid_code = dep_graph.get("mermaid", "")
                 if mermaid_code:
-                    with st.expander("📊 View Graphical Call Graph Flowchart (Mermaid)", expanded=False):
+                    with st.expander("View Graphical Call Graph Flowchart (Mermaid)", expanded=False):
                         mermaid_html = f"""
                         <!DOCTYPE html>
                         <html>
                         <head>
                           <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-                          <script>mermaid.initialize({{startOnLoad: true, theme: 'dark'}});</script>
+                          <script>mermaid.initialize({{startOnLoad: true, theme: '{'dark' if is_dark_mode else 'default'}'}});</script>
                         </head>
-                        <body style="background: transparent; margin: 0; padding: 10px; color: #f8fafc;">
+                        <body style="background: transparent; margin: 0; padding: 10px; color: {'#f8fafc' if is_dark_mode else '#09090b'};">
                           <div class="mermaid">
                             {mermaid_code}
                           </div>
@@ -2020,13 +2558,13 @@ def run_app() -> None:
 
                 if flattened_callers:
                     st.divider()
-                    st.markdown(f"#### 💥 Summary: {len(flattened_callers)} Upstream Caller(s) At Risk")
+                    st.markdown(f"#### Summary: {len(flattened_callers)} Upstream Callers At Risk")
                     st.dataframe(flattened_callers, use_container_width=True)
                 else:
-                    st.success("✅ **Zero upstream callers at risk.** All modified entities are self-contained or entrypoints.")
+                    st.success("Zero upstream callers at risk. All modified entities are self-contained or entrypoints.")
 
             with t_details:
-                st.markdown("#### 🔍 Detailed Code Entity Impacts & Prescriptive Guidance")
+                st.markdown("#### Detailed Code Entity Impacts & Prescriptive Guidance")
                 st.caption(active_impact.get("impact_analysis", {}).get("summary", ""))
 
                 detailed_list = active_impact.get("impact_analysis", {}).get("detailed_impacts", [])
@@ -2045,32 +2583,30 @@ def run_app() -> None:
                             outbounds = item.get("outbound_calls", [])
                             downstream = item.get("downstream_dependent_files", [])
 
-                            st.markdown(
-                                f"""
-                                <div style="background: rgba(30, 41, 59, 0.5); border-left: 4px solid #38bdf8; border-radius: 0 8px 8px 0; padding: 16px; margin-bottom: 18px; border: 1px solid rgba(255,255,255,0.06); border-left: 4px solid #38bdf8;">
-                                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                                    <div style="font-size: 1.05rem; font-weight: 700; color: #f8fafc;">
-                                      <span style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; padding: 2px 7px; border-radius: 4px; font-size: 0.75rem; text-transform: uppercase; margin-right: 6px;">{ent_type}</span>
-                                      <code>{ent_name}</code>
-                                    </div>
-                                    <span style="font-size: 0.8rem; color: #94a3b8; font-family: monospace;">{ent_file} : lines {lines[0]}-{lines[1]}</span>
-                                  </div>
-                                  <div style="font-size: 0.9rem; color: #e2e8f0; margin-bottom: 10px;">
-                                    <strong>Summary:</strong> {c_summary}
-                                  </div>
-                                  <div style="background: rgba(245, 158, 11, 0.1); border: 1px solid #f59e0b; border-radius: 6px; padding: 10px 12px; margin-bottom: 10px; font-size: 0.85rem; color: #fef3c7;">
-                                    <strong>💡 Remediation:</strong> {rem_guide}
-                                  </div>
-                                  <div style="font-size: 0.82rem; color: #94a3b8; margin-bottom: 8px;">
-                                    <strong>Evidence Justification:</strong> {just}
-                                  </div>
+                            entity_card_html = f"""
+                            <div style="background: var(--nb-surface); border: 2px solid var(--nb-border); border-left: 5px solid var(--nb-accent-blue); border-radius: 2px; padding: 16px; margin-bottom: 16px; box-shadow: var(--nb-shadow);">
+                              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
+                                <div style="font-size: 1.05rem; font-weight: 800; color: var(--nb-text);">
+                                  <span style="background: var(--nb-accent-blue); color: #FFFFFF; border: 1px solid var(--nb-border); padding: 2px 7px; border-radius: 2px; font-size: 0.72rem; text-transform: uppercase; font-family: 'JetBrains Mono', monospace; margin-right: 6px;">{ent_type}</span>
+                                  <code>{html.escape(ent_name)}</code>
                                 </div>
-                                """,
-                                unsafe_allow_html=True,
-                            )
+                                <span style="font-size: 0.8rem; color: var(--nb-text-muted); font-family: 'JetBrains Mono', monospace;">{html.escape(ent_file)} : lines {lines[0]}-{lines[1]}</span>
+                              </div>
+                              <div style="font-size: 0.9rem; color: var(--nb-text); margin-bottom: 10px;">
+                                <strong>Summary:</strong> {html.escape(c_summary)}
+                              </div>
+                              <div style="background: {'rgba(245, 158, 11, 0.15)' if is_dark_mode else '#FEF3C7'}; border: 1.5px solid var(--nb-border); border-left: 4px solid #f59e0b; border-radius: 2px; padding: 10px 12px; margin-bottom: 10px; font-size: 0.85rem; color: {'#fef3c7' if is_dark_mode else '#78350F'};">
+                                <strong>Remediation:</strong> {html.escape(rem_guide)}
+                              </div>
+                              <div style="font-size: 0.82rem; color: var(--nb-text-muted); margin-bottom: 8px;">
+                                <strong>Evidence Justification:</strong> {html.escape(just)}
+                              </div>
+                            </div>
+                            """
+                            render_html(entity_card_html)
 
                             if snippet:
-                                with st.expander(f"📄 View Diff Snippet for `{ent_name}`"):
+                                with st.expander(f"Diff Snippet for `{ent_name}`"):
                                     st.code(snippet, language="diff")
 
                             c_sub1, c_sub2, c_sub3 = st.columns(3)
@@ -2096,7 +2632,7 @@ def run_app() -> None:
                     st.info("No code symbols modified in this changeset.")
 
             with t_plan:
-                st.markdown("#### 📋 Prioritized Actionable Remediation Plan")
+                st.markdown("#### Prioritized Actionable Remediation Plan")
                 st.caption("Step-by-step developer checklist synthesized from diff syntax alterations, broken imports, and graph call sites.")
 
                 rem_plan = active_impact.get("risk_analysis", {}).get("actionable_remediation_plan", [])
@@ -2108,37 +2644,35 @@ def run_app() -> None:
                         targets = step.get("affected_targets", [])
 
                         cat_colors = {
-                            "Contract Changes": "#ef4444",
-                            "Missing Modules": "#f97316",
-                            "Direct Callers": "#f59e0b",
-                            "Integration Validation": "#38bdf8",
+                            "Contract Changes": "#ef4444" if is_dark_mode else "#dc2626",
+                            "Missing Modules": "#f97316" if is_dark_mode else "#ea580c",
+                            "Direct Callers": "#f59e0b" if is_dark_mode else "#d97706",
+                            "Integration Validation": "#38bdf8" if is_dark_mode else "#2563eb",
                         }
-                        c_color = cat_colors.get(cat, "#38bdf8")
+                        c_color = cat_colors.get(cat, "#2563eb")
 
-                        st.markdown(
-                            f"""
-                            <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(255,255,255,0.08); border-left: 4px solid {c_color}; border-radius: 0 8px 8px 0; padding: 12px 16px; margin-bottom: 10px;">
-                              <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <span style="font-weight: 700; color: #f8fafc; font-size: 0.95rem;">Step {s_num}: {cat}</span>
-                                <span style="font-size: 0.75rem; background: {c_color}22; color: {c_color}; border: 1px solid {c_color}; padding: 2px 8px; border-radius: 4px; font-weight: 600;">{cat.upper()}</span>
-                              </div>
-                              <div style="font-size: 0.88rem; color: #cbd5e1; margin-top: 6px;">{desc}</div>
-                              <div style="font-size: 0.75rem; color: #64748b; margin-top: 4px; font-family: monospace;">Targets: {', '.join(targets) if targets else 'N/A'}</div>
-                            </div>
-                            """,
-                            unsafe_allow_html=True,
-                        )
+                        step_card_html = f"""
+                        <div style="background: var(--nb-surface); border: 2px solid var(--nb-border); border-left: 5px solid {c_color}; border-radius: 2px; padding: 12px 16px; margin-bottom: 10px; box-shadow: var(--nb-shadow);">
+                          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
+                            <span style="font-weight: 800; color: var(--nb-text); font-size: 0.95rem; font-family: 'Inter', sans-serif;">Step {s_num}: {html.escape(cat)}</span>
+                            <span style="font-size: 0.72rem; background: var(--nb-surface); color: {c_color}; border: 1.5px solid var(--nb-border); padding: 2px 8px; border-radius: 2px; font-weight: 800; font-family: 'JetBrains Mono', monospace;">{cat.upper()}</span>
+                          </div>
+                          <div style="font-size: 0.88rem; color: var(--nb-text); margin-top: 6px;">{html.escape(desc)}</div>
+                          <div style="font-size: 0.75rem; color: var(--nb-text-muted); margin-top: 4px; font-family: 'JetBrains Mono', monospace;">Targets: {', '.join(targets) if targets else 'N/A'}</div>
+                        </div>
+                        """
+                        render_html(step_card_html)
                 else:
-                    st.success("✅ No remedial actions required.")
+                    st.success("No remedial actions required.")
 
                 st.divider()
-                st.markdown("#### 🧪 CI/CD Recommendations")
+                st.markdown("#### CI/CD Recommendations")
                 ci_recs = active_impact.get("risk_analysis", {}).get("ci_cd_recommendations", [])
                 for rec in ci_recs:
-                    st.markdown(f"- 🛡️ {rec}")
+                    st.markdown(f"- {rec}")
 
                 st.divider()
-                st.markdown("#### ⚠️ Key Risk Factors")
+                st.markdown("#### Key Risk Factors")
                 factors = active_impact.get("risk_analysis", {}).get("key_risk_factors", [])
                 if factors:
                     st.dataframe(factors, use_container_width=True)
@@ -2147,7 +2681,7 @@ def run_app() -> None:
                 col_dl, _ = st.columns([1, 3])
                 with col_dl:
                     st.download_button(
-                        label="📥 Download Full Impact JSON",
+                        label="Download Full Impact JSON",
                         data=json.dumps(active_impact, indent=2),
                         file_name=f"trace_impact_analysis_{meta.get('analysis_id', 'run')[:8]}.json",
                         mime="application/json",
@@ -2156,74 +2690,83 @@ def run_app() -> None:
                 st.json(active_impact)
 
     with tab_upgrade_planner:
-        st.subheader("📋 F07: Actionable Upgrade Planner & Dependency Orchestration")
-        st.caption("Transforms impact analysis and risk assessments into an actionable, dependency-ordered engineering upgrade plan.")
+        with st.container(border=True):
+            st.markdown(
+                """
+                <div style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1.2px; font-weight: 800; color: var(--nb-text-muted); margin-bottom: 2px;">
+                  Upgrade Planner & Orchestration Control
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            st.subheader("F07: Actionable Upgrade Planner & Dependency Orchestration")
+            st.caption("Transforms impact analysis and risk assessments into an actionable, dependency-ordered engineering upgrade plan.")
 
-        # Historical Plans for Repository
-        hist_code, hist_res = make_api_request(f"{api_url}/repositories/{selected_repo_id}/upgrade-plans")
-        existing_plans: list[dict[str, Any]] = hist_res.get("items", []) if (hist_code == 200 and hist_res) else []
+            # Historical Plans for Repository
+            hist_code, hist_res = make_api_request(f"{api_url}/repositories/{selected_repo_id}/upgrade-plans")
+            existing_plans: list[dict[str, Any]] = hist_res.get("items", []) if (hist_code == 200 and hist_res) else []
 
-        col_p1, col_p2 = st.columns([2, 1])
-        with col_p1:
-            st.markdown("##### 🚀 Plan Generation & Selection")
-        with col_p2:
-            if existing_plans:
-                plan_options = {f"{p['title']} ({p['status']} - {p['progress_percentage']}%)": p["id"] for p in existing_plans}
-                selected_plan_label = st.selectbox("Load Existing Plan", options=["-- New Plan --"] + list(plan_options.keys()))
-                if selected_plan_label != "-- New Plan --":
-                    st.session_state["active_plan_id"] = plan_options[selected_plan_label]
+            col_p1, col_p2 = st.columns([2, 1])
+            with col_p1:
+                st.markdown("##### Plan Generation & Selection")
+            with col_p2:
+                if existing_plans:
+                    plan_options = {f"{p['title']} ({p['status']} - {p['progress_percentage']}%)": p["id"] for p in existing_plans}
+                    selected_plan_label = st.selectbox("Load Existing Plan", options=["-- New Plan --"] + list(plan_options.keys()))
+                    if selected_plan_label != "-- New Plan --":
+                        st.session_state["active_plan_id"] = plan_options[selected_plan_label]
 
-        # Generator form
-        with st.expander("⚙️ Generate New Upgrade Plan", expanded=("active_plan_id" not in st.session_state)):
-            c_g1, c_g2, c_g3 = st.columns([2, 2, 2])
-            with c_g1:
-                p_base = st.text_input("Base Revision", value="HEAD~1", key="f07_base")
-            with c_g2:
-                p_target = st.text_input("Target Revision", value="HEAD", key="f07_target")
-            with c_g3:
-                p_title = st.text_input("Plan Title (Optional)", value=f"Upgrade Plan: {p_base} ➜ {p_target}", key="f07_title")
+            # Generator form
+            with st.expander("Generate New Upgrade Plan", expanded=("active_plan_id" not in st.session_state)):
+                c_g1, c_g2, c_g3 = st.columns([2, 2, 2])
+                with c_g1:
+                    p_base = st.text_input("Base Revision", value="HEAD~1", key="f07_base")
+                with c_g2:
+                    p_target = st.text_input("Target Revision", value="HEAD", key="f07_target")
+                with c_g3:
+                    p_title = st.text_input("Plan Title (Optional)", value=f"Upgrade Plan: {p_base} ➜ {p_target}", key="f07_title")
 
-            # Check if active impact analysis from F05 exists
-            active_impact_data = st.session_state.get("active_impact_data")
-            use_active_impact = False
-            active_impact_id = None
-            if active_impact_data:
-                active_impact_id = active_impact_data.get("analysis_metadata", {}).get("analysis_id")
-                if active_impact_id:
-                    use_active_impact = st.checkbox(
-                        f"Link to Active Impact Analysis (`{str(active_impact_id)[:8]}...`)",
-                        value=True,
-                        help="Reuse already computed AST diffs, callers at risk, and blast radius from F05.",
-                    )
+                # Check if active impact analysis from F05 exists
+                active_impact_data = st.session_state.get("active_impact_data")
+                use_active_impact = False
+                active_impact_id = None
+                if active_impact_data:
+                    active_impact_id = active_impact_data.get("analysis_metadata", {}).get("analysis_id")
+                    if active_impact_id:
+                        use_active_impact = st.checkbox(
+                            f"Link to Active Impact Analysis (`{str(active_impact_id)[:8]}...`)",
+                            value=True,
+                            help="Reuse already computed AST diffs, callers at risk, and blast radius from F05.",
+                        )
 
-            gen_btn = st.button("🔨 Generate Upgrade Plan", type="primary", use_container_width=True)
+                gen_btn = st.button("Generate Upgrade Plan", type="primary", use_container_width=True)
 
-            if gen_btn:
-                with st.spinner("Sequencing task dependency DAG, running Tarjan SCC cycle detection, and classifying architectural tiers..."):
-                    gen_payload = {
-                        "repository_id": selected_repo_id,
-                        "impact_analysis_id": active_impact_id if use_active_impact else None,
-                        "base_ref": p_base.strip() or "HEAD~1",
-                        "target_ref": p_target.strip() or "HEAD",
-                        "title": p_title.strip() or None,
-                        "llm_config": {
-                            "enabled": bool(enable_ai and openrouter_key.strip()),
-                            "api_key": openrouter_key.strip() if enable_ai else None,
-                            "model": openrouter_model if enable_ai else "mistralai/mistral-7b-instruct:free",
-                        },
-                    }
-                    g_code, g_res = make_api_request(
-                        f"{api_url}/upgrade-plans/generate",
-                        method="POST",
-                        payload=gen_payload,
-                        timeout=120.0,
-                    )
-                    if g_code in (200, 201) and g_res:
-                        st.session_state["active_plan_id"] = g_res["id"]
-                        st.success(f"Upgrade Plan generated successfully! Plan ID: `{g_res['id']}`")
-                        st.rerun()
-                    else:
-                        st.error(f"Plan generation failed ({g_code}): {g_res}")
+                if gen_btn:
+                    with st.spinner("Sequencing task dependency DAG, running Tarjan SCC cycle detection, and classifying architectural tiers..."):
+                        gen_payload = {
+                            "repository_id": selected_repo_id,
+                            "impact_analysis_id": active_impact_id if use_active_impact else None,
+                            "base_ref": p_base.strip() or "HEAD~1",
+                            "target_ref": p_target.strip() or "HEAD",
+                            "title": p_title.strip() or None,
+                            "llm_config": {
+                                "enabled": bool(enable_ai and openrouter_key.strip()),
+                                "api_key": openrouter_key.strip() if enable_ai else None,
+                                "model": openrouter_model if enable_ai else "mistralai/mistral-7b-instruct:free",
+                            },
+                        }
+                        g_code, g_res = make_api_request(
+                            f"{api_url}/upgrade-plans/generate",
+                            method="POST",
+                            payload=gen_payload,
+                            timeout=120.0,
+                        )
+                        if g_code in (200, 201) and g_res:
+                            st.session_state["active_plan_id"] = g_res["id"]
+                            st.success(f"Upgrade Plan generated successfully! Plan ID: `{g_res['id']}`")
+                            st.rerun()
+                        else:
+                            st.error(f"Plan generation failed ({g_code}): {g_res}")
 
         # Active Plan Inspector & Task Lifecycle
         curr_plan_id = st.session_state.get("active_plan_id")
@@ -2244,61 +2787,58 @@ def run_app() -> None:
                 p_suggestions = plan_data.get("optional_suggestions", [])
 
                 sig_palette = {
-                    "MAJOR_CHANGE": {"border": "#ef4444", "bg": "rgba(239, 68, 68, 0.12)", "text": "#fca5a5", "label": "Major Change"},
-                    "MODERATE_CHANGE": {"border": "#f59e0b", "bg": "rgba(245, 158, 11, 0.12)", "text": "#fde68a", "label": "Moderate Change"},
-                    "MINOR_CHANGE": {"border": "#3b82f6", "bg": "rgba(59, 130, 246, 0.12)", "text": "#93c5fd", "label": "Minor Change"},
-                    "NO_ACTION_REQUIRED": {"border": "#64748b", "bg": "rgba(100, 116, 139, 0.12)", "text": "#cbd5e1", "label": "No Action Required"},
+                    "MAJOR_CHANGE": {"border": "#ef4444", "bg": "#ef444420", "text": "#dc2626", "label": "Major Change"},
+                    "MODERATE_CHANGE": {"border": "#f59e0b", "bg": "#f59e0b20", "text": "#d97706", "label": "Moderate Change"},
+                    "MINOR_CHANGE": {"border": "#2563eb", "bg": "#2563eb20", "text": "#2563eb", "label": "Minor Change"},
+                    "NO_ACTION_REQUIRED": {"border": "#64748b", "bg": "#64748b20", "text": "#475569", "label": "No Action Required"},
                 }
                 sig_meta = sig_palette.get(p_significance, sig_palette["MODERATE_CHANGE"])
 
                 risk_colors = {
                     "CRITICAL": "#ef4444",
-                    "HIGH": "#f97316",
-                    "MEDIUM": "#f59e0b",
-                    "LOW": "#10b981",
+                    "HIGH": "#ea580c",
+                    "MEDIUM": "#d97706",
+                    "LOW": "#16a34a",
                 }
-                r_color = risk_colors.get(p_risk, "#38bdf8")
+                r_color = risk_colors.get(p_risk, "#2563eb")
 
                 status_colors = {
-                    "COMPLETED": "#10b981",
-                    "IN_PROGRESS": "#38bdf8",
-                    "DRAFT": "#94a3b8",
-                    "CANCELLED": "#64748b",
+                    "COMPLETED": "#16a34a",
+                    "IN_PROGRESS": "#2563eb",
+                    "DRAFT": "#64748b",
+                    "CANCELLED": "#71717a",
                 }
-                s_color = status_colors.get(p_status, "#94a3b8")
+                s_color = status_colors.get(p_status, "#64748b")
 
                 # 1. UPGRADE ASSESSMENT CARD
-                st.markdown(
-                    f"""
-                    <div style="background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(255, 255, 255, 0.08); border-top: 4px solid {sig_meta['border']}; border-radius: 10px; padding: 20px; margin-bottom: 20px;">
-                      <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px;">
-                        <div>
-                          <div style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1.2px; color: #94a3b8; font-weight: 600;">Upgrade Assessment</div>
-                          <h2 style="margin: 4px 0 6px 0; color: #f8fafc; font-size: 1.6rem; font-weight: 700;">{plan_data.get('title', 'Upgrade Plan')}</h2>
-                          <div style="font-size: 0.82rem; color: #94a3b8;">
-                            Revisions: <code style="color: #cbd5e1;">{plan_data.get('base_commit', '')[:7]}</code> ➜ <code style="color: #cbd5e1;">{plan_data.get('target_commit', '')[:7]}</code>
-                            &bull; Mode: <strong style="color: #e2e8f0;">{plan_data.get('reasoning_mode', 'HEURISTIC')}</strong>
-                          </div>
-                        </div>
-                        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-                          <div style="background: {sig_meta['bg']}; border: 1px solid {sig_meta['border']}; border-radius: 6px; padding: 6px 12px; text-align: center;">
-                            <div style="font-size: 0.95rem; font-weight: 700; color: {sig_meta['text']};">{sig_meta['label']}</div>
-                            <div style="font-size: 0.65rem; text-transform: uppercase; color: #94a3b8; font-weight: 600;">Significance</div>
-                          </div>
-                          <div style="background: {r_color}18; border: 1px solid {r_color}; border-radius: 6px; padding: 6px 12px; text-align: center;">
-                            <div style="font-size: 0.95rem; font-weight: 700; color: {r_color};">{p_risk}</div>
-                            <div style="font-size: 0.65rem; text-transform: uppercase; color: #94a3b8; font-weight: 600;">Risk Rating</div>
-                          </div>
-                          <div style="background: {s_color}18; border: 1px solid {s_color}; border-radius: 6px; padding: 6px 12px; text-align: center;">
-                            <div style="font-size: 0.95rem; font-weight: 700; color: {s_color};">{p_status}</div>
-                            <div style="font-size: 0.65rem; text-transform: uppercase; color: #94a3b8; font-weight: 600;">Status</div>
-                          </div>
-                        </div>
+                render_html(f"""
+                <div style="background: var(--card-bg); border: 2px solid var(--border-color); border-left: 6px solid {sig_meta['border']}; box-shadow: 3px 3px 0px var(--shadow-color); padding: 18px 20px; margin-bottom: 20px; border-radius: 0px;">
+                  <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px;">
+                    <div>
+                      <div style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text-secondary); font-weight: 700;">Upgrade Assessment</div>
+                      <h3 style="margin: 4px 0 6px 0; color: var(--text-primary); font-size: 1.4rem; font-weight: 800; font-family: 'JetBrains Mono', Consolas, monospace;">{plan_data.get('title', 'Upgrade Plan')}</h3>
+                      <div style="font-size: 0.82rem; color: var(--text-secondary); font-family: 'JetBrains Mono', Consolas, monospace;">
+                        Revisions: <span style="background: var(--bg-canvas); border: 1px solid var(--border-color); padding: 2px 6px; font-weight: 700; color: var(--text-primary);">{plan_data.get('base_commit', '')[:7]}</span> ➔ <span style="background: var(--bg-canvas); border: 1px solid var(--border-color); padding: 2px 6px; font-weight: 700; color: var(--text-primary);">{plan_data.get('target_commit', '')[:7]}</span>
+                        &bull; Mode: <strong style="color: var(--text-primary);">{plan_data.get('reasoning_mode', 'HEURISTIC')}</strong>
                       </div>
                     </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
+                    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                      <div style="background: {sig_meta['bg']}; border: 2px solid {sig_meta['border']}; box-shadow: 2px 2px 0px var(--shadow-color); padding: 6px 12px; text-align: center; border-radius: 0px;">
+                        <div style="font-size: 0.85rem; font-weight: 800; color: {sig_meta['text']}; font-family: 'JetBrains Mono', Consolas, monospace;">{sig_meta['label']}</div>
+                        <div style="font-size: 0.62rem; text-transform: uppercase; color: var(--text-secondary); font-weight: 700; letter-spacing: 0.5px;">Significance</div>
+                      </div>
+                      <div style="background: {r_color}18; border: 2px solid {r_color}; box-shadow: 2px 2px 0px var(--shadow-color); padding: 6px 12px; text-align: center; border-radius: 0px;">
+                        <div style="font-size: 0.85rem; font-weight: 800; color: {r_color}; font-family: 'JetBrains Mono', Consolas, monospace;">{p_risk}</div>
+                        <div style="font-size: 0.62rem; text-transform: uppercase; color: var(--text-secondary); font-weight: 700; letter-spacing: 0.5px;">Risk Rating</div>
+                      </div>
+                      <div style="background: {s_color}18; border: 2px solid {s_color}; box-shadow: 2px 2px 0px var(--shadow-color); padding: 6px 12px; text-align: center; border-radius: 0px;">
+                        <div style="font-size: 0.85rem; font-weight: 800; color: {s_color}; font-family: 'JetBrains Mono', Consolas, monospace;">{p_status}</div>
+                        <div style="font-size: 0.62rem; text-transform: uppercase; color: var(--text-secondary); font-weight: 700; letter-spacing: 0.5px;">Status</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                """)
 
                 # Recommended Action Banner
                 if p_significance in ("MINOR_CHANGE", "NO_ACTION_REQUIRED"):
@@ -2408,47 +2948,47 @@ def run_app() -> None:
 
                     tier_details = {
                         "CONTRACT_API": {
-                            "border": "#ef4444", "bg": "rgba(239, 68, 68, 0.12)", "text": "#fca5a5",
+                            "border": "#ef4444", "bg": "#ef444418", "text": "#dc2626",
                             "name": "Tier 1 · API / Contract",
                             "desc": "Public APIs, interfaces, schemas, request/response contracts",
                         },
                         "CORE_LOGIC": {
-                            "border": "#8b5cf6", "bg": "rgba(139, 92, 246, 0.12)", "text": "#c4b5fd",
+                            "border": "#8b5cf6", "bg": "#8b5cf618", "text": "#7c3aed",
                             "name": "Tier 2 · Core Logic",
                             "desc": "Business rules, services, domain/application logic",
                         },
                         "DATA_MAPPING": {
-                            "border": "#3b82f6", "bg": "rgba(59, 130, 246, 0.12)", "text": "#93c5fd",
+                            "border": "#2563eb", "bg": "#2563eb18", "text": "#2563eb",
                             "name": "Tier 3 · Data / Mapping",
                             "desc": "Database models, repositories, ORM mappings, serialization/data transformations",
                         },
                         "CONSUMER_HANDLER": {
-                            "border": "#f59e0b", "bg": "rgba(245, 158, 11, 0.12)", "text": "#fde68a",
+                            "border": "#f59e0b", "bg": "#f59e0b18", "text": "#d97706",
                             "name": "Tier 4 · Handlers / Consumers",
                             "desc": "Event handlers, webhooks, message consumers, adapters",
                         },
                         "CLIENT_UI": {
-                            "border": "#ec4899", "bg": "rgba(236, 72, 153, 0.12)", "text": "#fbcfe8",
+                            "border": "#ec4899", "bg": "#ec489918", "text": "#db2777",
                             "name": "Tier 5 · Client / UI",
                             "desc": "Frontend, UI components, templates, client-facing behavior",
                         },
                         "INTEGRATION_TEST": {
-                            "border": "#10b981", "bg": "rgba(16, 185, 129, 0.12)", "text": "#6ee7b7",
+                            "border": "#10b981", "bg": "#10b98118", "text": "#059669",
                             "name": "Tier 6 · Tests / Integration",
                             "desc": "Unit, integration, end-to-end and regression tests",
                         },
                         "DOCUMENTATION_CONFIG": {
-                            "border": "#64748b", "bg": "rgba(100, 116, 139, 0.12)", "text": "#cbd5e1",
+                            "border": "#64748b", "bg": "#64748b18", "text": "#475569",
                             "name": "Tier 7 · Documentation / Config",
                             "desc": "Documentation, comments, non-runtime configuration and supporting project files",
                         },
                     }
 
                     action_type_styles = {
-                        "REQUIRED_CHANGE": {"color": "#ef4444", "bg": "rgba(239, 68, 68, 0.15)", "label": "Required Change"},
-                        "VALIDATION_ONLY": {"color": "#38bdf8", "bg": "rgba(56, 189, 248, 0.15)", "label": "Validation Only"},
-                        "LOW_PRIORITY_REVIEW": {"color": "#f59e0b", "bg": "rgba(245, 158, 11, 0.15)", "label": "Review"},
-                        "NO_ACTION": {"color": "#94a3b8", "bg": "rgba(148, 163, 184, 0.15)", "label": "No Action"},
+                        "REQUIRED_CHANGE": {"color": "#ef4444", "bg": "#ef444420", "label": "Required Change"},
+                        "VALIDATION_ONLY": {"color": "#2563eb", "bg": "#2563eb20", "label": "Validation Only"},
+                        "LOW_PRIORITY_REVIEW": {"color": "#d97706", "bg": "#facc1530", "label": "Review"},
+                        "NO_ACTION": {"color": "#64748b", "bg": "#64748b20", "label": "No Action"},
                     }
 
                     if not filtered_tasks:
@@ -2479,44 +3019,41 @@ def run_app() -> None:
 
                             circ_alert = ""
                             if is_circ:
-                                circ_alert = """
-                                <div style="background: rgba(239, 68, 68, 0.15); border: 1px solid #ef4444; border-radius: 6px; padding: 6px 12px; margin-bottom: 8px; font-size: 0.8rem; color: #fca5a5;">
-                                  <strong>Circular Dependency:</strong> This component is part of a cyclic cluster. Co-dependent refactoring required.
+                                circ_alert = f"""
+                                <div style="background: #ef444418; border: 2px solid #ef4444; box-shadow: 2px 2px 0px var(--shadow-color); padding: 6px 10px; margin-bottom: 10px; font-size: 0.8rem; color: #ef4444; font-weight: 700; border-radius: 0px;">
+                                  Circular Dependency: Co-dependent refactoring required across cyclic cluster.
                                 </div>
                                 """
 
-                            st.markdown(
-                                f"""
-                                <div style="background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(255,255,255,0.08); border-left: 5px solid {t_tier['border']}; border-radius: 0 8px 8px 0; padding: 16px 20px; margin-bottom: 14px;">
-                                  {circ_alert}
-                                  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 8px;">
-                                    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                                      <span style="background: #1e293b; color: #38bdf8; border: 1px solid #38bdf8; font-weight: 700; font-size: 0.82rem; padding: 2px 8px; border-radius: 4px;">Step {step_num}</span>
-                                      <span style="background: {t_tier['bg']}; color: {t_tier['text']}; border: 1px solid {t_tier['border']}; font-size: 0.75rem; padding: 2px 8px; border-radius: 4px; font-weight: 600;">{tier_name_display}</span>
-                                      <span style="background: {act_style['bg']}; color: {act_style['color']}; border: 1px solid {act_style['color']}; font-size: 0.75rem; padding: 2px 8px; border-radius: 4px; font-weight: 600;">{act_style['label']}</span>
-                                      <span style="background: rgba(100, 116, 139, 0.2); color: #cbd5e1; font-size: 0.72rem; padding: 2px 8px; border-radius: 4px; font-family: monospace;">Stream #{p_group}</span>
-                                    </div>
-                                    <div style="display: flex; gap: 6px; align-items: center;">
-                                      <span style="font-size: 0.72rem; color: #94a3b8; text-transform: uppercase;">Risk: <strong style="color: {risk_colors.get(t_risk, '#94a3b8')};">{t_risk}</strong></span>
-                                      <span style="font-size: 0.78rem; font-weight: 600; color: {status_colors.get(t_status, '#94a3b8')}; background: {status_colors.get(t_status, '#94a3b8')}18; border: 1px solid {status_colors.get(t_status, '#94a3b8')}; padding: 2px 8px; border-radius: 4px;">{t_status}</span>
-                                    </div>
-                                  </div>
-                                  <div style="font-size: 0.76rem; color: #94a3b8; margin-bottom: 6px;">
-                                    {tier_meaning_display}
-                                  </div>
-                                  <div style="font-size: 1.05rem; font-weight: 700; color: #f8fafc; margin-bottom: 8px;">
-                                    <code>{comp}</code> <span style="color: #94a3b8; font-size: 0.8rem; font-weight: 400;">({comp_type})</span>
-                                  </div>
-                                  <div style="font-size: 0.88rem; color: #cbd5e1; margin-bottom: 8px;">
-                                    <strong>Why this matters:</strong> {reason}
-                                  </div>
-                                  <div style="background: rgba(56, 189, 248, 0.06); border-left: 3px solid #38bdf8; border-radius: 0 4px 4px 0; padding: 8px 12px; margin-bottom: 8px; font-size: 0.85rem; color: #e2e8f0;">
-                                    <strong>{'Validation:' if act_type == 'VALIDATION_ONLY' else 'What to change:'}</strong> {expected}
-                                  </div>
+                            render_html(f"""
+                            <div style="background: var(--card-bg); border: 2px solid var(--border-color); border-left: 6px solid {t_tier['border']}; box-shadow: 3px 3px 0px var(--shadow-color); padding: 14px 16px; margin-bottom: 14px; border-radius: 0px;">
+                              {circ_alert}
+                              <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 10px;">
+                                <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                                  <span style="background: var(--text-primary); color: var(--card-bg); border: 1.5px solid var(--border-color); font-weight: 800; font-size: 0.78rem; padding: 2px 8px; font-family: 'JetBrains Mono', Consolas, monospace; border-radius: 0px;">STEP {step_num}</span>
+                                  <span style="background: {t_tier['bg']}; color: {t_tier['text']}; border: 1.5px solid {t_tier['border']}; font-size: 0.75rem; padding: 2px 8px; font-weight: 700; font-family: 'JetBrains Mono', Consolas, monospace; border-radius: 0px;">{tier_name_display}</span>
+                                  <span style="background: {act_style['bg']}; color: {act_style['color']}; border: 1.5px solid {act_style['color']}; font-size: 0.75rem; padding: 2px 8px; font-weight: 700; font-family: 'JetBrains Mono', Consolas, monospace; border-radius: 0px;">{act_style['label']}</span>
+                                  <span style="background: var(--bg-canvas); color: var(--text-secondary); border: 1px solid var(--border-color); font-size: 0.72rem; padding: 2px 6px; font-family: 'JetBrains Mono', Consolas, monospace; border-radius: 0px;">STREAM #{p_group}</span>
                                 </div>
-                                """,
-                                unsafe_allow_html=True,
-                            )
+                                <div style="display: flex; gap: 6px; align-items: center;">
+                                  <span style="font-size: 0.75rem; font-family: 'JetBrains Mono', Consolas, monospace; font-weight: 700; color: {risk_colors.get(t_risk, '#94a3b8')}; border: 1.5px solid {risk_colors.get(t_risk, '#94a3b8')}; padding: 2px 8px; background: {risk_colors.get(t_risk, '#94a3b8')}18; border-radius: 0px;">RISK: {t_risk}</span>
+                                  <span style="font-size: 0.75rem; font-family: 'JetBrains Mono', Consolas, monospace; font-weight: 700; color: {status_colors.get(t_status, '#94a3b8')}; border: 1.5px solid {status_colors.get(t_status, '#94a3b8')}; padding: 2px 8px; background: {status_colors.get(t_status, '#94a3b8')}18; border-radius: 0px;">{t_status}</span>
+                                </div>
+                              </div>
+                              <div style="font-size: 0.74rem; color: var(--text-secondary); margin-bottom: 8px;">
+                                {tier_meaning_display}
+                              </div>
+                              <div style="font-size: 1.02rem; font-weight: 800; color: var(--text-primary); margin-bottom: 8px;">
+                                <code style="font-family: 'JetBrains Mono', Consolas, monospace; background: var(--bg-canvas); border: 1px solid var(--border-color); padding: 2px 6px; font-size: 0.95rem; color: var(--text-primary);">{comp}</code> <span style="color: var(--text-secondary); font-size: 0.8rem; font-weight: 600; font-family: 'JetBrains Mono', Consolas, monospace;">({comp_type})</span>
+                              </div>
+                              <div style="font-size: 0.85rem; color: var(--text-primary); margin-bottom: 8px; line-height: 1.4;">
+                                <strong>Why this matters:</strong> {reason}
+                              </div>
+                              <div style="background: var(--bg-canvas); border: 1px solid var(--border-color); border-left: 4px solid var(--accent-blue); padding: 8px 12px; margin-bottom: 8px; font-size: 0.82rem; color: var(--text-primary); border-radius: 0px;">
+                                <strong>{'Validation:' if act_type == 'VALIDATION_ONLY' else 'What to change:'}</strong> {expected}
+                              </div>
+                            </div>
+                            """)
 
                             c_m1, c_m2 = st.columns(2)
                             with c_m1:
@@ -2593,15 +3130,12 @@ def run_app() -> None:
                     if info_changes:
                         with st.expander(f"Non-Behavioral & Documentation Changes ({len(info_changes)})", expanded=False):
                             for ic in info_changes:
-                                st.markdown(
-                                    f"""
-                                    <div style="background: rgba(100, 116, 139, 0.1); border-left: 3px solid #64748b; padding: 8px 12px; margin-bottom: 6px; border-radius: 0 4px 4px 0;">
-                                      <div style="font-weight: 600; color: #f8fafc;"><code>{ic.get('component')}</code> <span style="font-size: 0.72rem; color: #94a3b8;">({ic.get('actionability', 'INFORMATIONAL')})</span></div>
-                                      <div style="font-size: 0.84rem; color: #cbd5e1;">{ic.get('reason')}</div>
-                                    </div>
-                                    """,
-                                    unsafe_allow_html=True,
-                                )
+                                render_html(f"""
+                                <div style="background: var(--card-bg); border: 1.5px solid var(--border-color); border-left: 4px solid var(--text-secondary); box-shadow: 2px 2px 0px var(--shadow-color); padding: 8px 12px; margin-bottom: 8px; border-radius: 0px;">
+                                  <div style="font-weight: 700; color: var(--text-primary); font-family: 'JetBrains Mono', Consolas, monospace;"><code>{ic.get('component')}</code> <span style="font-size: 0.72rem; color: var(--text-secondary);">({ic.get('actionability', 'INFORMATIONAL')})</span></div>
+                                  <div style="font-size: 0.82rem; color: var(--text-secondary); margin-top: 4px;">{ic.get('reason')}</div>
+                                </div>
+                                """)
                                 if ic.get("diff_snippet"):
                                     with st.expander(f"Diff for {ic.get('component')}"):
                                         st.code(ic.get("diff_snippet"), language="diff")
