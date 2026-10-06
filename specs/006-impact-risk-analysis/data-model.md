@@ -24,6 +24,7 @@ Represents an individual code entity whose AST boundaries intersect a diff hunk:
 | `inbound_callers` | `tuple[str, ...]` | Upstream direct callers identified via $G^T$. |
 | `callers_at_risk` | `tuple[CallerAtRisk, ...]` | Upstream callers up to depth 3 with path distance. |
 | `downstream_dependent_files` | `tuple[str, ...]` | Files containing text or import references to this entity. |
+| `is_doc_only` | `bool` | Flag indicating whether the modification is non-executable (docstring/comment/whitespace). |
 
 ### `CallerAtRisk`
 Represents an upstream caller identified through transposed BFS:
@@ -40,7 +41,7 @@ Individual risk contributor:
 
 | Field | Type | Description |
 | :--- | :--- | :--- |
-| `factor` | `str` | Factor title (e.g., "Public API Endpoint Modified", "High Blast Radius"). |
+| `factor` | `str` | Factor title (e.g., "Public Callable Signature Alteration", "Broad Upstream Propagation", "Code Module Deletion", "Documentation / Non-Executable Modification"). |
 | `severity` | `str` | `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`. |
 | `justification` | `str` | Evidence-based reasoning for the severity score. |
 

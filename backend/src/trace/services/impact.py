@@ -43,6 +43,12 @@ from trace.infrastructure.git.provider import GitProvider
 from trace.infrastructure.graph.gateway import GraphGateway
 from trace.infrastructure.storage.artifact_store import FileArtifactStore
 
+CODE_EXTENSIONS = {
+    ".py", ".pyi", ".ts", ".tsx", ".js", ".jsx",
+    ".go", ".rs", ".java", ".c", ".cpp", ".cc",
+    ".h", ".hpp", ".cs", ".rb", ".php", ".scala", ".kt",
+}
+
 logger = structlog.get_logger(__name__)
 
 
@@ -188,6 +194,7 @@ class ImpactAnalysisService:
         graph_nodes: list[GraphNodePayload] = []
         graph_edges: list[GraphEdgePayload] = []
         all_callers_at_risk: set[str] = set()
+        executable_callers_at_risk: set[str] = set()
         signature_changed_entities: list[str] = []
         all_downstream_files: set[str] = set()
 
@@ -222,9 +229,17 @@ class ImpactAnalysisService:
                 downstream_files=downstream_tuple,
             )
 
-            # Record if signature changed
-            if "signature" in reasoning_res["change_summary"].lower():
+            is_doc_only = bool(reasoning_res.get("is_doc_only", False))
+
+            # Record if signature changed (only for executable changes)
+            if not is_doc_only and "signature" in reasoning_res["change_summary"].lower():
                 signature_changed_entities.append(ov.entity_name)
+
+            # Callers are only at risk if the change alters executable behavior/contracts
+            entity_callers_at_risk = () if is_doc_only else t_res.callers_at_risk
+            if not is_doc_only:
+                for caller in t_res.direct_callers:
+                    executable_callers_at_risk.add(caller)
 
             detailed_impacts.append(
                 DetailedImpact(
@@ -238,8 +253,9 @@ class ImpactAnalysisService:
                     justification=reasoning_res["justification"],
                     outbound_calls=ov.outbound_calls,
                     inbound_callers=t_res.direct_callers,
-                    callers_at_risk=t_res.callers_at_risk,
+                    callers_at_risk=entity_callers_at_risk,
                     downstream_dependent_files=downstream_tuple,
+                    is_doc_only=is_doc_only,
                 )
             )
 
@@ -264,28 +280,48 @@ class ImpactAnalysisService:
                     )
                 )
 
+        # Distinguish code modules vs non-code deleted assets
+        deleted_code_files = [
+            f for f in deleted_files if Path(f).suffix.lower() in CODE_EXTENSIONS
+        ]
+        deleted_non_code_files = [
+            f for f in deleted_files if Path(f).suffix.lower() not in CODE_EXTENSIONS
+        ]
+
+        # Determine if the entire changeset is documentation/non-executable only
+        is_all_doc_only = (
+            len(detailed_impacts) > 0
+            and all(d.is_doc_only for d in detailed_impacts)
+            and len(deleted_code_files) == 0
+        )
+
         # 9. Synthesize Actionable Remediation Plan
         remediation_plan = self._delta_engine.synthesize_remediation_plan(
             signature_changed_entities=signature_changed_entities,
-            deleted_files=deleted_files,
-            inbound_callers=list(all_callers_at_risk),
+            deleted_files=deleted_code_files,
+            inbound_callers=list(executable_callers_at_risk),
             downstream_files=list(all_downstream_files),
+            is_doc_only_run=is_all_doc_only,
         )
 
         # 10. Risk Evaluation & Factors
         total_entities = len(detailed_impacts)
-        total_callers = len(all_callers_at_risk)
+        total_callers = len(executable_callers_at_risk)
         risk_level, risk_factors = self._evaluate_risk(
             total_entities=total_entities,
             signature_changes=len(signature_changed_entities),
             total_callers=total_callers,
             deleted_files_count=len(deleted_files),
+            deleted_code_files_count=len(deleted_code_files),
+            deleted_non_code_files_count=len(deleted_non_code_files),
+            is_all_doc_only=is_all_doc_only,
         )
 
         ci_cd_recommendations = self._generate_ci_cd_recommendations(
             risk_level=risk_level,
             total_callers=total_callers,
             signature_changes=len(signature_changed_entities),
+            is_all_doc_only=is_all_doc_only,
         )
 
         # 11. Generate Mermaid Diagram
@@ -449,9 +485,30 @@ class ImpactAnalysisService:
         signature_changes: int,
         total_callers: int,
         deleted_files_count: int,
+        deleted_code_files_count: int = 0,
+        deleted_non_code_files_count: int = 0,
+        is_all_doc_only: bool = False,
     ) -> tuple[RiskLevel, list[RiskFactor]]:
         """Evaluate architectural risk tier and contributing risk factors."""
         factors: list[RiskFactor] = []
+
+        if is_all_doc_only:
+            factors.append(
+                RiskFactor(
+                    factor="Documentation / Non-Executable Modification",
+                    severity="LOW",
+                    justification="Changes are isolated to documentation, docstrings, or comments with zero impact on runtime logic or caller contracts.",
+                )
+            )
+            if deleted_non_code_files_count > 0:
+                factors.append(
+                    RiskFactor(
+                        factor="Non-Code Asset Deletion",
+                        severity="LOW",
+                        justification=f"{deleted_non_code_files_count} non-code documentation/asset file(s) removed; runtime code unaffected.",
+                    )
+                )
+            return RiskLevel.LOW, factors
 
         if signature_changes > 0:
             factors.append(
@@ -478,8 +535,32 @@ class ImpactAnalysisService:
                     justification=f"{total_callers} callers depend on altered symbols across the call graph.",
                 )
             )
+        elif total_callers == 1:
+            factors.append(
+                RiskFactor(
+                    factor="Direct Caller Dependency",
+                    severity="MEDIUM",
+                    justification=f"{total_callers} caller depends on altered symbols across the call graph.",
+                )
+            )
 
-        if deleted_files_count > 0:
+        if deleted_code_files_count > 0:
+            factors.append(
+                RiskFactor(
+                    factor="Code Module Deletion",
+                    severity="HIGH",
+                    justification=f"{deleted_code_files_count} source code module(s) removed; requires import and dependency verification.",
+                )
+            )
+        elif deleted_non_code_files_count > 0:
+            factors.append(
+                RiskFactor(
+                    factor="Non-Code Asset Deletion",
+                    severity="LOW",
+                    justification=f"{deleted_non_code_files_count} non-code documentation/asset file(s) removed; runtime code unaffected.",
+                )
+            )
+        elif deleted_files_count > 0:
             factors.append(
                 RiskFactor(
                     factor="Module Deletion",
@@ -515,8 +596,12 @@ class ImpactAnalysisService:
         risk_level: RiskLevel,
         total_callers: int,
         signature_changes: int,
+        is_all_doc_only: bool = False,
     ) -> list[str]:
         """Synthesize CI/CD testing recommendations based on risk rating."""
+        if is_all_doc_only:
+            return ["Documentation update only; standard documentation rendering and lint checks are sufficient."]
+
         recs: list[str] = []
         if risk_level == RiskLevel.CRITICAL:
             recs.append("Full regression test suite and end-to-end integration tests MUST pass before merge.")
@@ -576,6 +661,7 @@ class ImpactAnalysisService:
                             for c in d.callers_at_risk
                         ],
                         "downstream_dependent_files": list(d.downstream_dependent_files),
+                        "is_doc_only": d.is_doc_only,
                     }
                     for d in aggregate.detailed_impacts
                 ],

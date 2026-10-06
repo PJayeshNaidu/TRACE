@@ -18,7 +18,7 @@ class HeuristicRuleEngine:
         diff_snippet: str,
         inbound_callers: tuple[str, ...],
         downstream_files: tuple[str, ...],
-    ) -> dict[str, str]:
+    ) -> dict[str, Any]:
         """Synthesize change_summary, remediation_guidance, and justification deterministically."""
         entity_name = entity_summary.get("entity", "entity")
         file_path = entity_summary.get("file", "unknown")
@@ -30,25 +30,34 @@ class HeuristicRuleEngine:
             inbound_callers=inbound_callers,
         )
 
-        callers_desc = (
-            f"Directly impacts upstream callers ({', '.join(f'`{c}`' for c in inbound_callers)})."
-            if inbound_callers
-            else "No direct upstream callers detected."
-        )
-        downstream_desc = (
-            f"Propagates risk to {len(downstream_files)} downstream dependent file(s)."
-            if downstream_files
-            else "Localized to source file."
-        )
-
-        justification = (
-            f"Core {entity_summary.get('entity_type', 'function')} `{entity_name}` in `{file_path}` "
-            f"modified (lines {lines[0]}-{lines[1]}); {delta.justification_snippet} "
-            f"{callers_desc} {downstream_desc}"
-        )
+        if delta.is_doc_only:
+            callers_desc = "Upstream callers unaffected (cosmetic/documentation change)."
+            downstream_desc = "Non-executable documentation update."
+            justification = (
+                f"Documentation/docstring for {entity_summary.get('entity_type', 'function')} `{entity_name}` "
+                f"in `{file_path}` updated (lines {lines[0]}-{lines[1]}); {delta.justification_snippet} "
+                f"{callers_desc} {downstream_desc}"
+            )
+        else:
+            callers_desc = (
+                f"Directly impacts upstream callers ({', '.join(f'`{c}`' for c in inbound_callers)})."
+                if inbound_callers
+                else "No direct upstream callers detected."
+            )
+            downstream_desc = (
+                f"Propagates risk to {len(downstream_files)} downstream dependent file(s)."
+                if downstream_files
+                else "Localized to source file."
+            )
+            justification = (
+                f"Core {entity_summary.get('entity_type', 'function')} `{entity_name}` in `{file_path}` "
+                f"modified (lines {lines[0]}-{lines[1]}); {delta.justification_snippet} "
+                f"{callers_desc} {downstream_desc}"
+            )
 
         return {
             "change_summary": delta.change_summary,
             "remediation_guidance": delta.remediation_guidance,
             "justification": justification,
+            "is_doc_only": delta.is_doc_only,
         }

@@ -48,6 +48,7 @@ class DetailedImpactSchema(BaseModel):
     inbound_callers: list[str] = Field(default_factory=list)
     callers_at_risk: list[CallerAtRiskSchema] = Field(default_factory=list)
     downstream_dependent_files: list[str] = Field(default_factory=list)
+    is_doc_only: bool = False
 
 
 class GraphNodeSchema(BaseModel):

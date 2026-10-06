@@ -112,6 +112,8 @@ As a DevOps engineer, when a function or route is modified, I need TRACE to scan
 ### Edge Cases
 
 - **Empty or Whitespace-Only Changes**: If a diff only touches comments or indentation outside function boundaries, return `total_changed_entities: 0` and `LOW` risk.
+- **Documentation & Docstring-Only Modifications**: When diff hunks modify only docstrings, comments, Sphinx/RST roles, or non-executable prose inside an AST entity, the system SHALL flag `is_doc_only: true`, exempt upstream callers from `callers_at_risk` escalation, and assign overall `RiskLevel.LOW`.
+- **Non-Code Asset Deletion**: Deletion of markdown, documentation, or asset files (`.md`, `.txt`, `.rst`, `.png`, etc.) SHALL NOT trigger `Code Module Deletion` (HIGH); only source code modules (`.py`, `.ts`, `.go`, etc.) escalate risk to `HIGH`.
 - **Dynamic Method Invocation (`getattr`)**: If a function invokes `getattr(self, "pay")`, extract `"pay"` as an outbound call rather than generic `getattr`.
 - **Async & Task Queue Wrappers**: If a task is dispatched via `send_email.delay()` or `task.apply_async()`, unwrap the callable to register `send_email`.
 - **Large Changesets (>100 files)**: Diff hunks must be sliced per changed code file; diff snippets passed to the LLM must be strictly capped (350 chars per entity) to prevent context window overflow.
@@ -141,11 +143,9 @@ As a DevOps engineer, when a function or route is modified, I need TRACE to scan
 
 #### Transformation Intelligence & Remediation
 - **FR-011**: The system SHALL implement a deterministic Diff Syntax Delta engine that inspects patch snippets for `def`, `return`, `raise`, and logic modifications to generate `change_summary`, `remediation_guidance`, and `justification`.
-- **FR-012**: The system SHALL synthesize a 4-step prioritized `actionable_remediation_plan`:
-  1. *Contract Changes*: Call sites needing parameter updates.
-  2. *Missing Modules*: Imports affected by deleted files.
-  3. *Direct Callers*: Regression tests for depth-1 callers.
-  4. *Integration Validation*: Downstream dependents and config files.
+- **FR-011b**: The system SHALL classify documentation/docstring/comment-only diffs as `is_doc_only = true`, producing non-breaking justification and exempting upstream callers from risk tier escalation.
+- **FR-011c**: The system SHALL distinguish deleted source code modules from non-code assets, scoring non-code deletions at `LOW` severity and source code module deletions at `HIGH` severity.
+- **FR-012**: The system SHALL synthesize an actionable remediation plan (contract changes $\to$ missing modules $\to$ direct callers $\to$ integration validation), defaulting to documentation build validation when changes are exclusively documentation-only.
 - **FR-013**: The system SHALL support an optional OpenRouter LLM track that enriches justifications and remediation text when an API key is provided, falling back automatically to the deterministic heuristic engine if absent.
 
 #### API & Unified Payload Contract
