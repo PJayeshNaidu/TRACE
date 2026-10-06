@@ -70,3 +70,10 @@ class FileArtifactStore:
 
         content = artifact_path.read_text(encoding="utf-8")
         return cast(dict[str, Any], json.loads(content))
+
+
+class PlanArtifactStore(FileArtifactStore):
+    """Manages persistence of UpgradePlan JSON artifacts on the filesystem."""
+
+    def __init__(self, base_path: Path | str = ".trace/artifacts/plans") -> None:
+        super().__init__(base_path=base_path)

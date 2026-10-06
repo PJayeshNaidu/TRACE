@@ -6,6 +6,11 @@ from trace.infrastructure.database.models.graph_build_run import GraphBuildRunOr
 from trace.infrastructure.database.models.impact_analysis import ImpactAnalysisOrm
 from trace.infrastructure.database.models.project import ProjectOrm
 from trace.infrastructure.database.models.repository import RepositoryOrm
+from trace.infrastructure.database.models.upgrade_plan import (
+    TaskDependencyOrm,
+    UpgradePlanOrm,
+    UpgradeTaskOrm,
+)
 from trace.infrastructure.database.models.version_comparison import VersionComparisonOrm
 
 __all__ = [
@@ -15,5 +20,8 @@ __all__ = [
     "ImpactAnalysisOrm",
     "ProjectOrm",
     "RepositoryOrm",
+    "TaskDependencyOrm",
+    "UpgradePlanOrm",
+    "UpgradeTaskOrm",
     "VersionComparisonOrm",
 ]

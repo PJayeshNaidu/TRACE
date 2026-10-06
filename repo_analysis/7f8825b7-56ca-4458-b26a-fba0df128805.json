@@ -1,0 +1,202 @@
+{
+  "schema_version": "1.0.0",
+  "analysis_run": {
+    "analysis_run_id": "7f8825b7-56ca-4458-b26a-fba0df128805",
+    "repository_id": "52018779-6665-4cab-bee7-da15d2cb7fba",
+    "status": "COMPLETED",
+    "started_at": "2026-10-04T17:05:59.402536+00:00",
+    "completed_at": "2026-10-04T17:05:59.412034+00:00",
+    "duration_ms": 9.5,
+    "analyzer_version": "0.1.0"
+  },
+  "repository": {
+    "repository_id": "52018779-6665-4cab-bee7-da15d2cb7fba",
+    "name": "test_analysis_service_with_plu0",
+    "url": "C:\\Users\\TanishaKharbe\\AppData\\Local\\Temp\\pytest-of-TanishaKharbe\\pytest-44\\test_analysis_service_with_plu0",
+    "root_path": "C:\\Users\\TanishaKharbe\\AppData\\Local\\Temp\\pytest-of-TanishaKharbe\\pytest-44\\test_analysis_service_with_plu0",
+    "default_branch": "main"
+  },
+  "version_control": {
+    "current_version": {
+      "commit_sha": "1234567890123456789012345678901234567890",
+      "branch": "main",
+      "tag": null
+    },
+    "branches": [
+      {
+        "branch_id": "branch:main",
+        "name": "main",
+        "is_default": true,
+        "is_remote": false,
+        "remote": null,
+        "head_commit": "1234567890123456789012345678901234567890",
+        "base_branch": null,
+        "base_commit": null,
+        "commits": [
+          {
+            "commit_sha": "1234567890123456789012345678901234567890",
+            "short_sha": "1234567",
+            "parent_commits": [],
+            "message": "Commit 1234567",
+            "author": "TRACE",
+            "timestamp": "2026-10-04T17:05:59.412034+00:00"
+          }
+        ]
+      }
+    ],
+    "tags": []
+  },
+  "metrics": {
+    "total_files": 1,
+    "python_files": 0,
+    "modules": 1,
+    "packages": 0,
+    "classes": 1,
+    "functions": 0,
+    "methods": 1,
+    "endpoints": 0,
+    "database_models": 0,
+    "test_functions": 0,
+    "external_dependencies": 0,
+    "total_relationships": 1,
+    "diagnostics_count": 0
+  },
+  "files": [
+    {
+      "file_id": "file:src/index.ts",
+      "name": "index.ts",
+      "path": "src/index.ts",
+      "extension": ".ts",
+      "language": "ts",
+      "size_bytes": 256,
+      "line_count": 0,
+      "hash": "c643e903b0efdccc343025a0474ea029c424696c1196b076171103e327b4c3e6",
+      "is_test": false,
+      "is_generated": false
+    }
+  ],
+  "python_files": [],
+  "external_dependencies": [],
+  "relationships": [
+    {
+      "relationship_id": "rel:src.index.TypeScriptService:EXTENDS:BaseService",
+      "source": {
+        "id": "src.index.TypeScriptService",
+        "type": "CLASS"
+      },
+      "target": {
+        "id": "BaseService",
+        "type": "CLASS"
+      },
+      "relationship_type": "EXTENDS"
+    }
+  ],
+  "dependency_graph": {
+    "nodes": [
+      {
+        "id": "mod:src.index",
+        "type": "module",
+        "name": "index",
+        "file_id": "file:src/index.ts"
+      },
+      {
+        "id": "class:src.index.TypeScriptService",
+        "type": "class",
+        "name": "TypeScriptService",
+        "file_id": "file:src/index.ts"
+      },
+      {
+        "id": "fn:src.index.TypeScriptService.process",
+        "type": "method",
+        "name": "process",
+        "file_id": "file:src/index.ts"
+      }
+    ],
+    "edges": [
+      {
+        "source_id": "src.index.TypeScriptService",
+        "target_id": "BaseService",
+        "relationship_type": "EXTENDS"
+      }
+    ]
+  },
+  "changes": {
+    "base_version": {
+      "commit_sha": "1234567890123456789012345678901234567890",
+      "branch": "main"
+    },
+    "target_version": {
+      "commit_sha": "1234567890123456789012345678901234567890",
+      "branch": "main"
+    },
+    "files": {
+      "added": [],
+      "modified": [],
+      "deleted": [],
+      "renamed": []
+    },
+    "packages": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    },
+    "modules": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    },
+    "classes": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    },
+    "functions": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    },
+    "methods": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    },
+    "endpoints": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    },
+    "database_models": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    },
+    "test_functions": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    },
+    "dependencies": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    },
+    "relationships": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "architecture": {
+    "components": [],
+    "layers": [],
+    "services": [],
+    "entry_points": [],
+    "circular_dependencies": []
+  },
+  "configuration": {
+    "frameworks": [],
+    "package_managers": [],
+    "configuration_files": []
+  },
+  "diagnostics": []
+}

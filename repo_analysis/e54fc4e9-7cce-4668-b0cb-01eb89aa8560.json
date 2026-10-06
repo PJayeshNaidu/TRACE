@@ -1,0 +1,343 @@
+{
+  "schema_version": "1.0.0",
+  "analysis_run": {
+    "analysis_run_id": "e54fc4e9-7cce-4668-b0cb-01eb89aa8560",
+    "repository_id": "1637b05b-1c3d-4991-810d-0da797055e37",
+    "status": "COMPLETED",
+    "started_at": "2026-10-04T14:57:29.347911+00:00",
+    "completed_at": "2026-10-04T14:57:29.361933+00:00",
+    "duration_ms": 14.02,
+    "analyzer_version": "0.1.0"
+  },
+  "repository": {
+    "repository_id": "1637b05b-1c3d-4991-810d-0da797055e37",
+    "name": "syntax_error_repo",
+    "url": "C:\\Users\\TanishaKharbe\\TRACE\\backend\\tests\\fixtures\\syntax_error_repo",
+    "root_path": "C:\\Users\\TanishaKharbe\\TRACE\\backend\\tests\\fixtures\\syntax_error_repo",
+    "default_branch": "main"
+  },
+  "version_control": {
+    "current_version": {
+      "commit_sha": "1234567890123456789012345678901234567890",
+      "branch": "main",
+      "tag": null
+    },
+    "branches": [
+      {
+        "branch_id": "branch:main",
+        "name": "main",
+        "is_default": true,
+        "is_remote": false,
+        "remote": null,
+        "head_commit": "1234567890123456789012345678901234567890",
+        "base_branch": null,
+        "base_commit": null,
+        "commits": [
+          {
+            "commit_sha": "1234567890123456789012345678901234567890",
+            "short_sha": "1234567",
+            "parent_commits": [],
+            "message": "Commit 1234567",
+            "author": "TRACE",
+            "timestamp": "2026-10-04T14:57:29.361933+00:00"
+          }
+        ]
+      }
+    ],
+    "tags": []
+  },
+  "metrics": {
+    "total_files": 2,
+    "python_files": 2,
+    "modules": 1,
+    "packages": 0,
+    "classes": 0,
+    "functions": 1,
+    "methods": 0,
+    "endpoints": 0,
+    "database_models": 0,
+    "test_functions": 0,
+    "external_dependencies": 0,
+    "total_relationships": 2,
+    "diagnostics_count": 1
+  },
+  "files": [
+    {
+      "file_id": "file:broken.py",
+      "name": "broken.py",
+      "path": "broken.py",
+      "extension": ".py",
+      "language": "python",
+      "size_bytes": 161,
+      "line_count": 4,
+      "hash": "ae2b1d1e2efd29f676ecf73bee756ea0781bef9c39c48e61150e2eab9fac4952",
+      "is_test": false,
+      "is_generated": false
+    },
+    {
+      "file_id": "file:valid.py",
+      "name": "valid.py",
+      "path": "valid.py",
+      "extension": ".py",
+      "language": "python",
+      "size_bytes": 131,
+      "line_count": 6,
+      "hash": "be58eb0a919f14d43743b57dea84f4600155ed0018c6abc1b0415ab9abfb474f",
+      "is_test": false,
+      "is_generated": false
+    }
+  ],
+  "python_files": [
+    {
+      "file": {
+        "file_id": "file:broken.py",
+        "name": "broken.py",
+        "path": "broken.py",
+        "location": "C:\\Users\\TanishaKharbe\\TRACE\\backend\\tests\\fixtures\\syntax_error_repo\\broken.py",
+        "size_bytes": 161,
+        "line_count": 4,
+        "hash": "ae2b1d1e2efd29f676ecf73bee756ea0781bef9c39c48e61150e2eab9fac4952"
+      },
+      "package": {
+        "package_id": "package:root",
+        "name": "root",
+        "path": "."
+      },
+      "modules": [],
+      "classes": [],
+      "functions": [],
+      "methods": [],
+      "endpoints": [],
+      "database_models": [],
+      "test_functions": [],
+      "imports": [],
+      "calls": [],
+      "dependencies": [],
+      "relationships": []
+    },
+    {
+      "file": {
+        "file_id": "file:valid.py",
+        "name": "valid.py",
+        "path": "valid.py",
+        "location": "C:\\Users\\TanishaKharbe\\TRACE\\backend\\tests\\fixtures\\syntax_error_repo\\valid.py",
+        "size_bytes": 131,
+        "line_count": 6,
+        "hash": "be58eb0a919f14d43743b57dea84f4600155ed0018c6abc1b0415ab9abfb474f"
+      },
+      "package": {
+        "package_id": "package:root",
+        "name": "root",
+        "path": "."
+      },
+      "modules": [
+        {
+          "module_id": "mod:valid",
+          "name": "valid",
+          "qualified_name": "valid",
+          "location": {
+            "line_start": 1,
+            "line_end": 6
+          }
+        }
+      ],
+      "classes": [],
+      "functions": [
+        {
+          "function_id": "fn:valid.valid_function",
+          "name": "valid_function",
+          "qualified_name": "valid.valid_function",
+          "location": {
+            "line_start": 4,
+            "line_end": 6
+          },
+          "parameters": [],
+          "return_type": "str",
+          "is_async": false
+        }
+      ],
+      "methods": [],
+      "endpoints": [],
+      "database_models": [],
+      "test_functions": [],
+      "imports": [],
+      "calls": [],
+      "dependencies": [],
+      "relationships": [
+        {
+          "relationship_id": "rel:valid.py:1:DOCUMENTED_BY:Module docstring: valid",
+          "source": {
+            "id": "valid",
+            "type": "MODULE"
+          },
+          "target": {
+            "id": "Module docstring: valid",
+            "type": "DOCUMENTATION"
+          },
+          "relationship_type": "DOCUMENTED_BY",
+          "location": {
+            "line": 1
+          }
+        },
+        {
+          "relationship_id": "rel:valid.py:4:DOCUMENTED_BY:Function docstring: valid.valid_function",
+          "source": {
+            "id": "valid.valid_function",
+            "type": "FUNCTION"
+          },
+          "target": {
+            "id": "Function docstring: valid.valid_function",
+            "type": "DOCUMENTATION"
+          },
+          "relationship_type": "DOCUMENTED_BY",
+          "location": {
+            "line": 4
+          }
+        }
+      ]
+    }
+  ],
+  "external_dependencies": [],
+  "relationships": [
+    {
+      "relationship_id": "rel:valid:DOCUMENTED_BY:Module docstring: valid",
+      "source": {
+        "id": "valid",
+        "type": "MODULE"
+      },
+      "target": {
+        "id": "Module docstring: valid",
+        "type": "DOCUMENTATION"
+      },
+      "relationship_type": "DOCUMENTED_BY"
+    },
+    {
+      "relationship_id": "rel:valid.valid_function:DOCUMENTED_BY:Function docstring: valid.valid_function",
+      "source": {
+        "id": "valid.valid_function",
+        "type": "FUNCTION"
+      },
+      "target": {
+        "id": "Function docstring: valid.valid_function",
+        "type": "DOCUMENTATION"
+      },
+      "relationship_type": "DOCUMENTED_BY"
+    }
+  ],
+  "dependency_graph": {
+    "nodes": [
+      {
+        "id": "mod:valid",
+        "type": "module",
+        "name": "valid",
+        "file_id": "file:valid.py"
+      },
+      {
+        "id": "fn:valid.valid_function",
+        "type": "function",
+        "name": "valid_function",
+        "file_id": "file:valid.py"
+      }
+    ],
+    "edges": [
+      {
+        "source_id": "valid",
+        "target_id": "Module docstring: valid",
+        "relationship_type": "DOCUMENTED_BY"
+      },
+      {
+        "source_id": "valid.valid_function",
+        "target_id": "Function docstring: valid.valid_function",
+        "relationship_type": "DOCUMENTED_BY"
+      }
+    ]
+  },
+  "changes": {
+    "base_version": {
+      "commit_sha": "1234567890123456789012345678901234567890",
+      "branch": "main"
+    },
+    "target_version": {
+      "commit_sha": "1234567890123456789012345678901234567890",
+      "branch": "main"
+    },
+    "files": {
+      "added": [],
+      "modified": [],
+      "deleted": [],
+      "renamed": []
+    },
+    "packages": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    },
+    "modules": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    },
+    "classes": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    },
+    "functions": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    },
+    "methods": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    },
+    "endpoints": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    },
+    "database_models": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    },
+    "test_functions": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    },
+    "dependencies": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    },
+    "relationships": {
+      "added": [],
+      "modified": [],
+      "deleted": []
+    }
+  },
+  "architecture": {
+    "components": [],
+    "layers": [],
+    "services": [],
+    "entry_points": [],
+    "circular_dependencies": []
+  },
+  "configuration": {
+    "frameworks": [],
+    "package_managers": [],
+    "configuration_files": []
+  },
+  "diagnostics": [
+    {
+      "code": "SYNTAX_ERROR",
+      "severity": "ERROR",
+      "message": "'(' was never closed",
+      "file_path": "broken.py",
+      "line": 3,
+      "column": 18
+    }
+  ]
+}
