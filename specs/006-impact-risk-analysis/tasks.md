@@ -126,6 +126,19 @@
 
 ---
 
+## Phase 9: Nuanced Risk Analysis & Documentation-Only Classification Enhancement
+
+**Purpose**: Prevent false-positive high-risk evaluations on cosmetic, docstring, comment, and non-code asset modifications.
+
+- [x] T039 [Nuanced Risk] Add `is_doc_only` attribute to `DetailedImpact` domain entity and `DetailedImpactSchema` in `backend/src/trace/domain/impact.py` and `backend/src/trace/api/impact/schemas.py`
+- [x] T040 [Nuanced Risk] Implement docstring, Sphinx/RST tag, and comment classification in `DeltaInferenceEngine` (`is_doc_only_diff`) in `backend/src/trace/analysis/delta_inference.py`
+- [x] T041 [Nuanced Risk] Update `HeuristicRuleEngine` in `backend/src/trace/analysis/reasoner/heuristic.py` to produce non-breaking justifications and report `is_doc_only`
+- [x] T042 [Nuanced Risk] Separate source code modules from non-code asset deletions and exclude doc-only modifications from caller risk escalation in `ImpactAnalysisService` in `backend/src/trace/services/impact.py`
+- [x] T043 [Nuanced Risk] Update `_evaluate_risk` to assign `RiskLevel.LOW` for all-doc-only changes and non-code file deletions in `backend/src/trace/services/impact.py`
+- [x] T044 [Nuanced Risk] Add comprehensive unit tests in `backend/tests/unit/test_nuanced_risk.py` verifying docstring typo, comment, and non-code deletion risk scoring
+
+---
+
 ## Dependencies & Completion Order
 
 ```text
@@ -147,4 +160,7 @@ Phase 3: US1 (Diff Slicing)  Phase 4: US2 (Multi-Hop) Phase 7: US5 (Text Discove
                               │
                               ▼
                  Phase 8: Service, API, & Streamlit Observatory
+                              │
+                              ▼
+                 Phase 9: Nuanced Risk & Doc-Only Enhancement
 ```

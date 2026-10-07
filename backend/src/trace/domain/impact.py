@@ -50,6 +50,7 @@ class DetailedImpact:
     inbound_callers: tuple[str, ...] = ()
     callers_at_risk: tuple[CallerAtRisk, ...] = ()
     downstream_dependent_files: tuple[str, ...] = ()
+    is_doc_only: bool = False
 
 
 @dataclass(frozen=True)

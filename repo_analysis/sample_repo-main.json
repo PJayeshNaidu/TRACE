@@ -1,19 +1,19 @@
 {
   "schema_version": "1.0.0",
   "analysis_run": {
-    "analysis_run_id": "028576c8-5a4e-489c-a824-5367219168a3",
-    "repository_id": "941791f0-b3ae-4abf-ada7-5c87ddaa844c",
+    "analysis_run_id": "6d41cc59-2739-4498-82ba-d0633f16148b",
+    "repository_id": "7bd36e52-5d20-4ecb-b659-a2cbb7133ee6",
     "status": "COMPLETED",
-    "started_at": "2026-09-29T16:59:57.151426+00:00",
-    "completed_at": "2026-09-29T16:59:57.217203+00:00",
-    "duration_ms": 65.78,
+    "started_at": "2026-10-06T10:38:21.454272+00:00",
+    "completed_at": "2026-10-06T10:38:21.470726+00:00",
+    "duration_ms": 16.45,
     "analyzer_version": "0.1.0"
   },
   "repository": {
-    "repository_id": "941791f0-b3ae-4abf-ada7-5c87ddaa844c",
+    "repository_id": "7bd36e52-5d20-4ecb-b659-a2cbb7133ee6",
     "name": "sample_repo",
-    "url": "C:\\TRACE\\backend\\tests\\fixtures\\sample_repo",
-    "root_path": "C:\\TRACE\\backend\\tests\\fixtures\\sample_repo",
+    "url": "C:\\Users\\VigneshVijayNaik\\TRACE\\backend\\tests\\fixtures\\sample_repo",
+    "root_path": "C:\\Users\\VigneshVijayNaik\\TRACE\\backend\\tests\\fixtures\\sample_repo",
     "default_branch": "main"
   },
   "version_control": {
@@ -39,7 +39,7 @@
             "parent_commits": [],
             "message": "Commit 1234567",
             "author": "TRACE",
-            "timestamp": "2026-09-29T16:59:57.217203+00:00"
+            "timestamp": "2026-10-06T10:38:21.470726+00:00"
           }
         ]
       }
@@ -177,7 +177,7 @@
         "file_id": "file:app/__init__.py",
         "name": "__init__.py",
         "path": "app/__init__.py",
-        "location": "C:\\TRACE\\backend\\tests\\fixtures\\sample_repo\\app\\__init__.py",
+        "location": "C:\\Users\\VigneshVijayNaik\\TRACE\\backend\\tests\\fixtures\\sample_repo\\app\\__init__.py",
         "size_bytes": 60,
         "line_count": 3,
         "hash": "d6e0d77918d29c89c79a19455307b680b11e65289ce893063df33767658a8b32"
@@ -230,7 +230,7 @@
         "file_id": "file:app/main.py",
         "name": "main.py",
         "path": "app/main.py",
-        "location": "C:\\TRACE\\backend\\tests\\fixtures\\sample_repo\\app\\main.py",
+        "location": "C:\\Users\\VigneshVijayNaik\\TRACE\\backend\\tests\\fixtures\\sample_repo\\app\\main.py",
         "size_bytes": 555,
         "line_count": 22,
         "hash": "0178979e49b1cc6c55c520f77e2cf5b87488411117021123e79d89f8bbf5a4f7"
@@ -585,7 +585,7 @@
         "file_id": "file:app/models.py",
         "name": "models.py",
         "path": "app/models.py",
-        "location": "C:\\TRACE\\backend\\tests\\fixtures\\sample_repo\\app\\models.py",
+        "location": "C:\\Users\\VigneshVijayNaik\\TRACE\\backend\\tests\\fixtures\\sample_repo\\app\\models.py",
         "size_bytes": 456,
         "line_count": 20,
         "hash": "9afb7c2173f22b8e9efee5b1390c7e7d757fa8cc30d7aa418866b6e87e1866fa"
@@ -900,7 +900,7 @@
         "file_id": "file:app/services.py",
         "name": "services.py",
         "path": "app/services.py",
-        "location": "C:\\TRACE\\backend\\tests\\fixtures\\sample_repo\\app\\services.py",
+        "location": "C:\\Users\\VigneshVijayNaik\\TRACE\\backend\\tests\\fixtures\\sample_repo\\app\\services.py",
         "size_bytes": 841,
         "line_count": 33,
         "hash": "b42bc0e021c8d2bc339bb466ef2f70702583ef268e0ca05169423b1408a229cb"

@@ -17,6 +17,7 @@ class DeltaInferenceResult:
     is_signature_change: bool = False
     is_return_change: bool = False
     is_exception_change: bool = False
+    is_doc_only: bool = False
 
 
 class DeltaInferenceEngine:
@@ -25,6 +26,65 @@ class DeltaInferenceEngine:
     DEF_PATTERN = re.compile(r"^[+-]\s*(async\s+)?def\s+([a-zA-Z_]\w*)", re.MULTILINE)
     RETURN_PATTERN = re.compile(r"^[+-]\s*return\b", re.MULTILINE)
     RAISE_PATTERN = re.compile(r"^[+-]\s*raise\b", re.MULTILINE)
+
+    @staticmethod
+    def is_doc_or_comment_line(line: str) -> bool:
+        """Determine whether a single diff patch line is documentation or a comment."""
+        s = line.strip()
+        if not s:
+            return True
+        # Standard comment prefixes
+        if s.startswith(("#", "//", "/*", "*", "*/", ";;", "--", "<!--", "-->", "%")):
+            return True
+        # Docstring quotes
+        if s.startswith(('"""', "'''")) or s.endswith(('"""', "'''")):
+            return True
+        # Sphinx roles (:data:`, :class:`, :param:, etc.) or documentation tags
+        if s.startswith((":", "@", "..", "* ", "- ", "+ ", ">>>")):
+            return True
+        if re.search(r":(data|class|meth|func|ref|mod|attr|param|type|return|raises|exception):`", s):
+            return True
+
+        # Check if line contains executable code constructs
+        # 1. Definitions
+        if re.match(r"^(async\s+)?def\s+[a-zA-Z_]\w*", s):
+            return False
+        if re.match(r"^(class\s+[a-zA-Z_]\w*|import\s+|from\s+[a-zA-Z_]\w*)", s):
+            return False
+        # 2. Control flow keywords
+        if re.match(r"^(return\b|raise\b|yield\b|assert\b|pass\b|break\b|continue\b)", s):
+            return False
+        if re.match(r"^(if|elif|else|while|for|with|try|except|finally)\b.*:\s*$", s):
+            return False
+        # 3. Assignments: var = expr (excluding ==, <=, >=, !=)
+        if re.search(r"^[a-zA-Z_]\w*(\.[a-zA-Z_]\w*)*\s*=[^=]", s):
+            return False
+        # 4. Standalone function/method calls: foo(...)
+        if re.match(r"^[a-zA-Z_]\w*(\.[a-zA-Z_]\w*)*\(", s):
+            return False
+
+        # If it doesn't contain executable syntax, treat as doc/prose line
+        return True
+
+    @classmethod
+    def is_doc_only_diff(cls, diff_snippet: str) -> bool:
+        """Check if all added and removed lines in the diff snippet are non-executable docs/comments."""
+        if not diff_snippet or not diff_snippet.strip():
+            return False
+
+        patch_lines: list[str] = []
+        for line in diff_snippet.splitlines():
+            if (line.startswith("+") and not line.startswith("+++")) or (
+                line.startswith("-") and not line.startswith("---")
+            ):
+                content = line[1:].strip()
+                if content:
+                    patch_lines.append(content)
+
+        if not patch_lines:
+            return True
+
+        return all(cls.is_doc_or_comment_line(line) for line in patch_lines)
 
     def infer_delta(
         self,
@@ -38,6 +98,15 @@ class DeltaInferenceEngine:
                 change_summary="Internal function implementation updated.",
                 remediation_guidance=f"Run unit tests for `{entity_name}` and regression tests on direct callers.",
                 justification_snippet="Internal statements altered without signature changes.",
+            )
+
+        # Check documentation / docstring-only changes first to avoid false positives
+        if self.is_doc_only_diff(diff_snippet):
+            return DeltaInferenceResult(
+                change_summary="Documentation / docstring updated without executable logic changes.",
+                remediation_guidance=f"Documentation update only for `{entity_name}`; no upstream caller code modifications or regression test suite execution required.",
+                justification_snippet="Documentation or comment content updated; internal logic, call contracts, and executable statements preserved.",
+                is_doc_only=True,
             )
 
         has_def = bool(self.DEF_PATTERN.search(diff_snippet))
@@ -88,8 +157,20 @@ class DeltaInferenceEngine:
         deleted_files: list[str],
         inbound_callers: list[str],
         downstream_files: list[str],
+        is_doc_only_run: bool = False,
     ) -> list[RemediationStep]:
         """Synthesize prioritized 4-step remediation plan."""
+        if is_doc_only_run:
+            targets = tuple(sorted(list(set(downstream_files)))) if downstream_files else ("documentation",)
+            return [
+                RemediationStep(
+                    step_number=1,
+                    category="Documentation Verification",
+                    action_description="Verify documentation build and docstring syntax rendering across affected components.",
+                    affected_targets=targets,
+                )
+            ]
+
         plan: list[RemediationStep] = []
         step_num = 1
 

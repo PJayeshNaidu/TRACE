@@ -13,8 +13,8 @@ Key technical mechanisms:
 1. Zero-context diff hunk slicing (`git diff -U0`) and mathematical interval intersection ($\max(F_s, H_s) \le \min(F_e, H_e)$) with Decorator Expansion.
 2. Inverted call graph traversal ($G^T = (V, E^T)$) running BFS up to depth 3 to detect direct callers, callers of callers, and architectural entrypoints.
 3. Cross-module word-boundary discovery (`\b<name>\b`) across configs (YAML/JSON) and documentation (Markdown).
-4. Deterministic diff syntax delta rules (`def`, `return`, `raise`, statements) generating structured `change_summary`, `justification`, and `remediation_guidance`.
-5. Prioritized 4-step actionable remediation plan (Contract Changes $\to$ Missing Modules $\to$ Direct Callers $\to$ Integration Validation).
+4. Deterministic diff syntax delta rules (`def`, `return`, `raise`, statements) with non-executable docstring/comment classification (`is_doc_only`) producing accurate, non-alarmist justifications.
+5. Nuanced multi-factor risk evaluation: separating code modules from non-code asset deletions, exempting doc-only changes from upstream caller risk escalation, and outputting actionable remediation plans tailored to change type.
 6. Dual-Track reasoning: Deterministic offline heuristic engine (default) + optional online OpenRouter LLM enrichment.
 7. Unified 4-key JSON response schema and Mermaid graph generation with color styling (#ef4444 for modified, #f59e0b for at-risk callers).
 
