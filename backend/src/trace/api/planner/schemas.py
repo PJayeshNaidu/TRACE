@@ -14,7 +14,7 @@ class LLMConfigSchema(BaseModel):
 
     enabled: bool = False
     api_key: str | None = None
-    model: str | None = "mistralai/mistral-7b-instruct:free"
+    model: str | None = "nvidia/nemotron-3.5-lightning:free"
 
 
 class GenerateUpgradePlanRequest(BaseModel):

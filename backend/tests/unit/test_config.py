@@ -16,7 +16,8 @@ def test_valid_config_with_required_fields_only() -> None:
         config.database_url.get_secret_value()
         == "postgresql+asyncpg://user:pass@localhost:5432/trace"
     )
-    assert config.llm_default_model == "mistralai/mistral-7b-instruct:free"
+    assert config.llm_default_model == "nvidia/nemotron-3.5-lightning:free"
+    assert config.openrouter_model == "meta-llama/llama-3.3-70b-instruct:free"
     assert config.llm_enable_external_calls is False
     assert config.llm_enable_external_transmission is False
     assert config.app_env == "development"

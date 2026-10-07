@@ -15,7 +15,7 @@ class ApplicationConfig(BaseSettings):
     """Central typed settings for TRACE derived from environment variables."""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=(".env", "../.env"),
         env_file_encoding="utf-8",
         extra="ignore",
         case_sensitive=False,
@@ -88,8 +88,12 @@ class ApplicationConfig(BaseSettings):
         description="OpenRouter API base URL override",
     )
     llm_default_model: str = Field(
-        default="mistralai/mistral-7b-instruct:free",
+        default="nvidia/nemotron-3.5-lightning:free",
         description="Default free-tier LLM model identifier",
+    )
+    openrouter_model: str = Field(
+        default="meta-llama/llama-3.3-70b-instruct:free",
+        description="Default OpenRouter model for assistant synthesis",
     )
     llm_reasoning_model: str | None = Field(
         default=None,
@@ -130,7 +134,7 @@ class ApplicationConfig(BaseSettings):
 
     # Security Gates
     llm_enable_external_calls: bool = Field(
-        default=False,
+        default=True,
         description="Whether live external LLM calls are permitted",
     )
     llm_enable_external_transmission: bool = Field(
@@ -176,8 +180,11 @@ class ApplicationConfig(BaseSettings):
 
     @model_validator(mode="after")
     def _validate_llm_call_prerequisites(self) -> "ApplicationConfig":
-        if self.llm_enable_external_calls and not self.openrouter_api_key:
-            raise ValueError(
-                "OPENROUTER_API_KEY is required when LLM_ENABLE_EXTERNAL_CALLS is True"
-            )
+        if self.llm_enable_external_calls and not (self.openrouter_api_key and self.openrouter_api_key.get_secret_value().strip()):
+            if "llm_enable_external_calls" in self.model_fields_set:
+                raise ValueError(
+                    "OPENROUTER_API_KEY is required when LLM_ENABLE_EXTERNAL_CALLS is True"
+                )
+            else:
+                self.llm_enable_external_calls = False
         return self

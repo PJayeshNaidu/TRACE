@@ -8,12 +8,20 @@ Completely decoupled from backend internal domain and database models.
 import html
 import json
 import os
+import re
 import textwrap
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
 from typing import Any
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+    load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
+except ImportError:
+    pass
 
 try:
     import streamlit as st
@@ -1688,6 +1696,510 @@ def render_impact_graph_canvas(d_detail: dict[str, Any]) -> None:
         st.warning("Streamlit HTML components not available.")
 
 
+def get_dynamic_suggestion_chips(
+    api_url: str,
+    project_id: str | None,
+    active_run_id: str | None = None,
+) -> list[tuple[str, str]]:
+    """Return context-aware dynamic suggestion chips based on active project and analysis run."""
+    if not project_id:
+        return [
+            ("🎯 Blast Radius", "What components are most affected?"),
+            ("⚠️ High Risk", "Which modules have the highest risk?"),
+            ("📋 Task Order", "Explain the upgrade task sequence."),
+            ("🔍 Call Flow", "How do services interact across architectural tiers?"),
+        ]
+
+    # If an analysis run is active, extract dynamic symbols from graph or summary
+    if active_run_id:
+        cache_key = f"ast_chips_{active_run_id}"
+        if cache_key in st.session_state:
+            return st.session_state[cache_key]
+
+        top_symbol: str | None = None
+
+        # Check session-state selected node if available
+        sel_node = st.session_state.get("selected_graph_node") or st.session_state.get("inspector_node")
+        if sel_node and isinstance(sel_node, dict):
+            top_symbol = sel_node.get("name") or sel_node.get("id") or sel_node.get("symbol_name")
+
+        # Try to extract from analysis summary or impact if not found yet
+        if not top_symbol:
+            try:
+                s_code, s_data = make_api_request(f"{api_url}/analyses/{active_run_id}/summary", timeout=2.0)
+                if s_code == 200 and s_data:
+                    top_files = s_data.get("top_affected_files", [])
+                    if top_files and isinstance(top_files, list):
+                        top_symbol = str(top_files[0]).split("/")[-1].replace(".py", "").replace(".ts", "").replace(".js", "")
+                    elif s_data.get("summary_file_path"):
+                        top_symbol = str(s_data.get("summary_file_path")).split("/")[-1].split(".")[0]
+            except Exception:
+                pass
+
+        if not top_symbol:
+            try:
+                g_code, g_data = make_api_request(f"{api_url}/analyses/{active_run_id}/graph/nodes?limit=5", timeout=2.0)
+                if g_code == 200 and g_data:
+                    nodes = g_data.get("items", []) if isinstance(g_data, dict) else g_data
+                    if nodes and isinstance(nodes, list):
+                        for n in nodes:
+                            if isinstance(n, dict) and n.get("name") and n.get("kind") not in ("File", "Directory"):
+                                top_symbol = n.get("name")
+                                break
+                        if not top_symbol and nodes and isinstance(nodes[0], dict):
+                            top_symbol = nodes[0].get("name") or nodes[0].get("id")
+            except Exception:
+                pass
+
+        if top_symbol:
+            git_or_project_terms = {"head", "main", "master", "origin", "trunk", "branch", "commit", "repo", "project", "repository", "snapshot", "upgrade"}
+            is_repo_symbol = bool(
+                top_symbol.lower() in git_or_project_terms
+                or any(g in top_symbol.lower() for g in ("-head", "-main", "-master", "python-proj", "sample_repo"))
+            )
+            if is_repo_symbol:
+                chips = [
+                    ("What dependencies are present?", "What dependencies and call relationships are present?"),
+                    ("What components are high risk?", "Which components have the highest risk score?"),
+                    ("Explain upgrade plan", "Which changes should be implemented first in the upgrade plan?"),
+                    ("Repository overview", "What language and architecture does this project use?"),
+                ]
+            else:
+                chips = [
+                    (f"What depends on {top_symbol}?", f"What functions and components depend on {top_symbol}?"),
+                    (f"What could modifying {top_symbol} affect?", f"Why is {top_symbol} affected by this change?"),
+                    (f"Show the call hierarchy for {top_symbol}", f"Show all callers of {top_symbol}"),
+                    (f"Why is {top_symbol} classified as high risk?", f"Why is {top_symbol} classified as high risk?"),
+                ]
+            st.session_state[cache_key] = chips
+            return chips
+
+    return [
+        ("What depends on this function?", "What components are most affected by this change?"),
+        ("What could this change affect?", "Which components are classified as highest risk?"),
+        ("Show me the dependency chain", "What are the core structural entry points and dependencies?"),
+        ("Why does Task 1 precede Task 4?", "Why does Task 1 precede Task 4 in the upgrade plan?"),
+    ]
+
+
+def format_assistant_intent_title(raw_intent: str) -> str:
+    """Format raw intent into a clean, professional section title without technical metadata."""
+    mapping = {
+        "IMPACT_DEPENDENCY": "Impact / Dependency",
+        "IMPACT_ANALYSIS": "Impact / Blast Radius",
+        "DEPENDENCY": "Dependencies",
+        "RISK_ANALYSIS": "Risk Analysis",
+        "UPGRADE_PLAN": "Upgrade Plan",
+        "PROJECT_OVERVIEW": "Project Overview",
+        "CODE_SEARCH": "Code Search",
+        "SYMBOL_CONTEXT": "Symbol Context",
+        "CHANGE_ANALYSIS": "Version Changes",
+        "TEST_ANALYSIS": "Test Coverage",
+        "GENERAL_KNOWLEDGE": "General Knowledge",
+        "GENERAL_OBSERVATORY": "Observatory Intelligence",
+        "ERROR": "Query Notice",
+    }
+    if raw_intent in mapping:
+        return mapping[raw_intent]
+    cleaned = raw_intent.replace("_", " ").title()
+    return cleaned if cleaned else "Assistant Response"
+
+
+def clean_assistant_answer_text(text: str) -> str:
+    """Strip code line numbers like (line 11) or (lines 10-20) and stray emojis from answer."""
+    if not text:
+        return ""
+    # Strip (line 11), (line 17), (lines 10-20), (line: 11)
+    cleaned = re.sub(r'\s*\((?:lines?|line:?)\s+\d+(?:-\d+)?\)', '', text, flags=re.IGNORECASE)
+    cleaned = cleaned.replace("🤖", "").replace("👤", "").replace("💡", "")
+    return cleaned
+
+
+def fetch_assistant_status(api_url: str) -> dict[str, Any]:
+    """Fetch live assistant status and model info from backend."""
+    try:
+        status_code, data = make_api_request(f"{api_url}/assistant/status", timeout=2.0)
+        if status_code == 200 and isinstance(data, dict):
+            return data
+    except Exception:
+        pass
+    has_env_key = bool(os.getenv("OPENROUTER_API_KEY", "").strip())
+    model = os.getenv("OPENROUTER_MODEL", "nvidia/nemotron-3.5-lightning:free")
+    return {
+        "status": "online" if has_env_key else "offline",
+        "has_api_key": has_env_key,
+        "model": model,
+        "external_calls_enabled": True,
+    }
+
+
+def render_assistant_panel(
+    api_url: str,
+    project_id: str | None,
+    active_run_id: str | None = None,
+    enable_ai: bool = False,
+    is_dark: bool = False,
+) -> None:
+    """Render the docked right-hand TRACE AI Assistant panel with restrained, sharp rectangular design."""
+    backend_status = fetch_assistant_status(api_url)
+    is_online = backend_status.get("status") == "online" or backend_status.get("has_api_key") or enable_ai
+    st.session_state["assistant_online"] = is_online
+
+    history = st.session_state.get("assistant_messages", [])
+
+    # Inject scoped restrained design styles for the assistant panel
+    st.markdown(
+        """
+        <style>
+        .ta-panel-scope { display: none; }
+
+        .ta-header-title {
+          font-family: 'Inter', -apple-system, sans-serif !important;
+          font-size: 1.15rem !important;
+          font-weight: 800 !important;
+          color: var(--nb-text) !important;
+          letter-spacing: -0.3px !important;
+          line-height: 1.2 !important;
+          margin: 0 !important;
+        }
+
+        .ta-header-status {
+          font-family: 'Inter', -apple-system, sans-serif !important;
+          font-size: 0.76rem !important;
+          font-weight: 600 !important;
+          color: var(--nb-text-subtle) !important;
+          margin-top: 2px !important;
+          margin-bottom: 8px !important;
+        }
+
+        [data-testid="stColumn"]:has(.ta-panel-scope) button[help="Close Assistant"] {
+          border: 1px solid var(--nb-border) !important;
+          box-shadow: none !important;
+          background-color: var(--nb-surface) !important;
+          color: var(--nb-text) !important;
+          border-radius: 0px !important;
+          font-size: 0.75rem !important;
+          padding: 2px 7px !important;
+          min-height: 28px !important;
+          transform: none !important;
+        }
+
+        /* Cohesive rectangular outline/border with thin defined borders, no shadows */
+        [data-testid="stColumn"]:has(.ta-panel-scope) [data-testid="stVerticalBlockBorderWrapper"] > div {
+          border: 1px solid var(--nb-border) !important;
+          border-radius: 0px !important;
+          box-shadow: none !important;
+          background-color: var(--nb-surface) !important;
+          padding: 14px 16px !important;
+          margin-bottom: 12px !important;
+        }
+
+        .ta-suggested-title, .ta-followups-title {
+          font-family: 'Inter', -apple-system, sans-serif !important;
+          font-size: 0.78rem !important;
+          font-weight: 700 !important;
+          color: var(--nb-text-subtle) !important;
+          letter-spacing: 0.2px !important;
+          margin-bottom: 8px !important;
+        }
+
+        .ta-followups-title {
+          margin-top: 14px !important;
+          margin-bottom: 6px !important;
+        }
+
+        /* Vertically stacked question & follow-up buttons: thin subtle border, zero heavy shadow, normal text */
+        [data-testid="stColumn"]:has(.ta-panel-scope) [data-testid="stVerticalBlockBorderWrapper"] button {
+          border: 1px solid var(--nb-border) !important;
+          border-radius: 0px !important;
+          box-shadow: none !important;
+          font-family: 'Inter', -apple-system, sans-serif !important;
+          font-size: 0.81rem !important;
+          font-weight: 500 !important;
+          text-transform: none !important;
+          letter-spacing: 0px !important;
+          text-align: left !important;
+          justify-content: flex-start !important;
+          padding: 7px 11px !important;
+          margin-bottom: 5px !important;
+          background-color: var(--nb-surface) !important;
+          color: var(--nb-text) !important;
+          line-height: 1.35 !important;
+          white-space: normal !important;
+          height: auto !important;
+          min-height: 34px !important;
+          transform: none !important;
+          transition: background-color 0.12s ease, border-color 0.12s ease !important;
+        }
+
+        [data-testid="stColumn"]:has(.ta-panel-scope) [data-testid="stVerticalBlockBorderWrapper"] button:hover {
+          background-color: var(--nb-surface-alt) !important;
+          border-color: var(--nb-border) !important;
+          box-shadow: none !important;
+          transform: none !important;
+        }
+
+        [data-testid="stColumn"]:has(.ta-panel-scope) [data-testid="stVerticalBlockBorderWrapper"] button:active {
+          background-color: var(--nb-surface-alt) !important;
+          border-color: var(--nb-border) !important;
+          box-shadow: none !important;
+          transform: none !important;
+        }
+
+        /* User Message Chat Bubble with subtle right-side extrusion */
+        .ta-user-bubble-wrapper {
+          display: flex;
+          justify-content: flex-end;
+          margin: 12px 0 14px 0;
+          width: 100%;
+        }
+
+        .ta-user-bubble {
+          background: var(--nb-surface-alt);
+          color: var(--nb-text);
+          border: 1px solid var(--nb-border);
+          border-radius: 2px;
+          padding: 8px 12px;
+          font-size: 0.83rem;
+          line-height: 1.45;
+          max-width: 90%;
+          word-break: break-word;
+          box-shadow: 2px 2px 0px var(--nb-border);
+          font-weight: 500;
+        }
+
+        /* AI Response Header & Body */
+        .ta-ai-response-wrapper {
+          margin-top: 10px;
+          margin-bottom: 4px;
+        }
+
+        .ta-ai-intent-tag {
+          font-family: 'Inter', -apple-system, sans-serif !important;
+          font-size: 0.82rem !important;
+          font-weight: 700 !important;
+          color: var(--nb-text-subtle) !important;
+          letter-spacing: 0.1px !important;
+          margin-bottom: 6px !important;
+        }
+
+        [data-testid="stColumn"]:has(.ta-panel-scope) code {
+          background-color: var(--nb-code-bg) !important;
+          color: var(--nb-code-text) !important;
+          border: 1px solid var(--nb-border) !important;
+          padding: 1px 5px !important;
+          font-size: 0.85em !important;
+          font-weight: 600 !important;
+          border-radius: 0px !important;
+        }
+
+        /* Chat Input: Restrained rectangular styling with subtle 2px bottom/right offset */
+        [data-testid="stColumn"]:has(.ta-panel-scope) [data-testid="stChatInput"] {
+          border-radius: 0px !important;
+          padding-bottom: 0px !important;
+        }
+
+        [data-testid="stColumn"]:has(.ta-panel-scope) [data-testid="stChatInput"] > div {
+          border: 1.5px solid var(--nb-border) !important;
+          border-radius: 0px !important;
+          box-shadow: 2px 2px 0px var(--nb-border) !important;
+          background-color: var(--nb-surface) !important;
+        }
+
+        [data-testid="stColumn"]:has(.ta-panel-scope) [data-testid="stChatInput"] textarea {
+          border: none !important;
+          box-shadow: none !important;
+          border-radius: 0px !important;
+          font-family: 'Inter', -apple-system, sans-serif !important;
+          font-size: 0.85rem !important;
+          font-weight: 500 !important;
+          color: var(--nb-text) !important;
+          background-color: transparent !important;
+        }
+
+        [data-testid="stColumn"]:has(.ta-panel-scope) [data-testid="stChatInput"] textarea::placeholder {
+          color: var(--nb-text-subtle) !important;
+        }
+
+        [data-testid="stColumn"]:has(.ta-panel-scope) [data-testid="stChatInputSubmitButton"] {
+          border: none !important;
+          box-shadow: none !important;
+          background: transparent !important;
+          color: var(--nb-text) !important;
+          transform: none !important;
+        }
+
+        [data-testid="stColumn"]:has(.ta-panel-scope) [data-testid="stChatInputSubmitButton"]:hover {
+          background: transparent !important;
+          box-shadow: none !important;
+          transform: none !important;
+        }
+        </style>
+        <div class="ta-panel-scope"></div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # Top Header (No emojis)
+    cols = st.columns([8, 2])
+    with cols[0]:
+        status_label = "Status: ONLINE" if st.session_state.get("assistant_online") else "Status: OFFLINE"
+        st.markdown(
+            f"""
+            <div class="ta-header-title">TRACE Assistant</div>
+            <div class="ta-header-status">{status_label}</div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with cols[1]:
+        if st.button("✕", key="close_assistant_drawer_btn", help="Close Assistant"):
+            st.session_state["assistant_open"] = False
+            st.rerun()
+
+    if not project_id:
+        st.info("Please select an analyzed project first.")
+
+    # Check for pending prompt from chip or follow-up click
+    pending_prompt = st.session_state.pop("pending_assistant_prompt", None)
+
+    # Main Assistant Conversation Area: single cohesive rectangular outlined container
+    with st.container(border=True, height=620):
+        # Suggested Questions (always visible, vertically stacked)
+        suggestions = get_dynamic_suggestion_chips(api_url, project_id, active_run_id)
+        if suggestions:
+            st.markdown(
+                """
+                <div class="ta-suggested-title">Suggested Questions</div>
+                """,
+                unsafe_allow_html=True,
+            )
+            for idx, (label, prompt_text) in enumerate(suggestions):
+                if st.button(label, key=f"assistant_chip_{idx}", disabled=(not project_id), use_container_width=True):
+                    st.session_state["pending_assistant_prompt"] = prompt_text
+                    st.rerun()
+
+        if history:
+            st.markdown("<hr style='border: none; border-top: 1px solid var(--nb-surface-alt); margin: 14px 0 10px 0;'/>", unsafe_allow_html=True)
+        else:
+            st.markdown(
+                """
+                <div style="font-size: 0.8rem; color: var(--nb-text-subtle); margin-top: 10px; line-height: 1.45;">
+                  Ask a question about dependencies, risk impact, upgrade planning, or code changes below.
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+        # Conversation History
+        for msg in history:
+            role = msg.get("role", "user")
+            if role == "user":
+                content_escaped = html.escape(msg.get("content", ""))
+                st.markdown(
+                    f"""
+                    <div class="ta-user-bubble-wrapper">
+                      <div class="ta-user-bubble">
+                        {content_escaped}
+                      </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+            else:
+                intent_title = format_assistant_intent_title(msg.get("intent", "GENERAL_OBSERVATORY"))
+                st.markdown(
+                    f"""
+                    <div class="ta-ai-response-wrapper">
+                      <div class="ta-ai-intent-tag">{html.escape(intent_title)}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+                # Clean answer text (strip line numbers and stray emojis)
+                answer_clean = clean_assistant_answer_text(msg.get("answer", ""))
+                st.markdown(answer_clean)
+
+                # Follow-up actions (stacked vertically, clean styling, no heavy borders/shadows)
+                followups = msg.get("suggested_followups", [])
+                if followups:
+                    st.markdown(
+                        """
+                        <div class="ta-followups-title">Follow-up actions</div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                    for idx, fu in enumerate(followups[:3]):
+                        clean_fu = re.sub(r'^[^\w\s]+', '', fu).strip()
+                        if st.button(clean_fu, key=f"fu_{id(msg)}_{idx}", use_container_width=True):
+                            st.session_state["pending_assistant_prompt"] = clean_fu
+                            st.rerun()
+
+    # Pinned Chat Input at bottom with restrained rectangular styling
+    user_input = st.chat_input(
+        "Ask a question...",
+        disabled=(not project_id),
+        key="trace_assistant_chat_input",
+    )
+
+    query_to_process = user_input or pending_prompt
+    if query_to_process and project_id:
+        query_str = query_to_process.strip()
+        if len(query_str) < 3:
+            st.warning("Question must be at least 3 characters long.")
+        else:
+            # Build bounded history payload (last 2 turns prior to new question)
+            history_payload = [
+                {
+                    "role": m.get("role", "user"),
+                    "content": m.get("content") or m.get("answer", ""),
+                }
+                for m in history[-4:]
+            ]
+
+            history.append({"role": "user", "content": query_str})
+            st.session_state["assistant_messages"] = history
+
+            with st.spinner("TRACE AI Assistant synthesizing answer..."):
+                payload = {
+                    "project_id": str(project_id),
+                    "analysis_run_id": str(active_run_id) if active_run_id else None,
+                    "question": query_str,
+                    "history": history_payload,
+                }
+                status_code, response_data = make_api_request(
+                    f"{api_url}/assistant/ask",
+                    method="POST",
+                    payload=payload,
+                )
+
+                if status_code == 200 and response_data:
+                    history.append({
+                        "role": "assistant",
+                        "answer": response_data.get("answer", "No answer synthesized."),
+                        "intent": response_data.get("intent", "GENERAL_OBSERVATORY"),
+                        "grounding_status": response_data.get("grounding_status", "FALLBACK_DETERMINISTIC"),
+                        "sources": response_data.get("sources", []),
+                        "suggested_followups": response_data.get("suggested_followups", []),
+                        "model_used": response_data.get("model_used", "offline-deterministic-fallback"),
+                    })
+                    st.session_state["assistant_messages"] = history
+                else:
+                    err_msg = response_data.get("error") if response_data else f"HTTP {status_code}"
+                    history.append({
+                        "role": "assistant",
+                        "answer": f"**Assistant Query Error**: Could not complete request ({status_code}): {err_msg}",
+                        "intent": "ERROR",
+                        "grounding_status": "INSUFFICIENT_EVIDENCE",
+                        "sources": [],
+                        "suggested_followups": [],
+                        "model_used": "error",
+                    })
+                    st.session_state["assistant_messages"] = history
+
+            st.rerun()
+
+
 def run_app() -> None:
     """Main Streamlit application flow."""
     if st is None:
@@ -1698,6 +2210,12 @@ def run_app() -> None:
         page_title="TRACE Code Intelligence Observatory",
         layout="wide",
     )
+
+    # AI Assistant session state
+    if "assistant_open" not in st.session_state:
+        st.session_state["assistant_open"] = True
+    if "assistant_messages" not in st.session_state:
+        st.session_state["assistant_messages"] = []
 
     # Sidebar: Section 1 - System & Connectivity
     with st.sidebar.container(border=True):
@@ -1738,7 +2256,19 @@ def run_app() -> None:
                 """
             )
 
-    st.title("TRACE Code Intelligence Observatory")
+    # Top Observatory Header
+    is_ast_open = st.session_state.get("assistant_open", True)
+    if is_ast_open:
+        st.title("TRACE Code Intelligence Observatory")
+    else:
+        hdr_col1, hdr_col2 = st.columns([7.8, 2.2])
+        with hdr_col1:
+            st.title("TRACE Code Intelligence Observatory")
+        with hdr_col2:
+            st.write("")
+            if st.button("💬 TRACE Assistant", key="open_assistant_drawer_btn", use_container_width=True):
+                st.session_state["assistant_open"] = True
+                st.rerun()
 
     # Sidebar: Section 2 - Project Workspace
     # Fetch projects
@@ -1901,258 +2431,497 @@ def run_app() -> None:
                 help="Toggle between AI-enriched explanations and offline deterministic rules.",
             )
 
-    # Observatory Top-Level Navigation - True Segmented Brutalist Tab Tiles
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "Code Intelligence",
-        "Version Analyzer",
-        "Impact & Risk",
-        "Upgrade Planner",
-    ])
-    tab_intelligence, tab_version_diff, tab_impact_engine, tab_upgrade_planner = tab1, tab2, tab3, tab4
+    # Layout Split: Main Workspace vs AI Assistant Panel
+    assistant_open = st.session_state.get("assistant_open", True)
+    if assistant_open:
+        col_main, col_assistant = st.columns([7, 3], gap="large")
+    else:
+        col_main = st.container()
+        col_assistant = None
 
-    with tab_intelligence:
-        # Framed Analysis Execution Control Panel
-        with st.container(border=True):
-            st.markdown(
-                """
-                <div style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1.2px; font-weight: 800; color: var(--nb-text-muted); margin-bottom: 2px;">
-                  Analysis Execution Control
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-            st.subheader("Repository Code Analysis Control")
-            st.caption("Trigger full AST symbol extraction, structural relationship mapping, and graph ingestion for the target commit.")
+    with col_main:
+        # Observatory Top-Level Navigation - True Segmented Brutalist Tab Tiles
+        tab1, tab2, tab3, tab4 = st.tabs([
+            "Code Intelligence",
+            "Version Analyzer",
+            "Impact & Risk",
+            "Upgrade Planner",
+        ])
+        tab_intelligence, tab_version_diff, tab_impact_engine, tab_upgrade_planner = tab1, tab2, tab3, tab4
 
-            col1, col2, col3 = st.columns([2, 2, 1])
-            with col1:
-                target_ref = st.text_input("Target Ref / Commit SHA (optional)", value="HEAD", key="f02_target_ref")
-            with col2:
-                exclude_patterns_str = st.text_input("Exclude Patterns (comma-separated)", value="tests/*, docs/*", key="f02_exclude")
-            with col3:
-                st.write("")
-                st.write("")
-                trigger_btn = st.button("Analyze Repository", type="primary", use_container_width=True)
-
-        if trigger_btn:
-            patterns = [p.strip() for p in exclude_patterns_str.split(",") if p.strip()]
-            trigger_payload = {"target_ref": target_ref or None, "exclude_patterns": patterns}
-            trigger_code, trigger_res = make_api_request(
-                f"{api_url}/repositories/{selected_repo_id}/analyze",
-                method="POST",
-                payload=trigger_payload,
-            )
-
-            if trigger_code == 202 and trigger_res:
-                run_id = trigger_res["id"]
-                st.session_state["active_run_id"] = run_id
-                st.success(f"Analysis triggered! Run ID: `{run_id}`")
-            else:
-                st.error(f"Failed to trigger analysis: {trigger_res}")
-
-        active_run_id = st.session_state.get("active_run_id")
-
-        # Polling & Display Section
-        if active_run_id:
-            st.divider()
-            st.subheader(f"Analysis Run: `{active_run_id}`")
-
-            status_placeholder = st.empty()
-            poll_count = 0
-            run_status = "PENDING"
-            run_record: dict[str, Any] = {}
-
-            while poll_count < 30 and run_status in ("PENDING", "IN_PROGRESS"):
-                status_code, run_res = make_api_request(f"{api_url}/analyses/{active_run_id}")
-                if status_code == 200 and run_res:
-                    run_record = run_res
-                    run_status = run_record.get("status", "UNKNOWN")
-                    status_placeholder.info(f"Analysis Status: **{run_status}** (polling...)")
-                    if run_status in ("COMPLETED", "FAILED"):
-                        break
-                time.sleep(1.0)
-                poll_count += 1
-
-            if run_status == "COMPLETED":
-                status_placeholder.success(
-                    f"Analysis **COMPLETED** in {run_record.get('duration_ms', 0):.1f} ms | Commit: `{run_record.get('commit_hash', 'N/A')}`"
+        with tab_intelligence:
+            # Framed Analysis Execution Control Panel
+            with st.container(border=True):
+                st.markdown(
+                    """
+                    <div style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1.2px; font-weight: 800; color: var(--nb-text-muted); margin-bottom: 2px;">
+                      Analysis Execution Control
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
                 )
+                st.subheader("Repository Code Analysis Control")
+                st.caption("Trigger full AST symbol extraction, structural relationship mapping, and graph ingestion for the target commit.")
 
-                # Summary Metrics
-                sum_code, sum_data = make_api_request(f"{api_url}/analyses/{active_run_id}/summary")
-                metrics = sum_data.get("metrics", {}) if sum_code == 200 and sum_data else {}
+                col1, col2, col3 = st.columns([2, 2, 1])
+                with col1:
+                    target_ref = st.text_input("Target Ref / Commit SHA (optional)", value="HEAD", key="f02_target_ref")
+                with col2:
+                    exclude_patterns_str = st.text_input("Exclude Patterns (comma-separated)", value="tests/*, docs/*", key="f02_exclude")
+                with col3:
+                    st.write("")
+                    st.write("")
+                    trigger_btn = st.button("Analyze Repository", type="primary", use_container_width=True)
 
-                m1, m2, m3, m4, m5, m6 = st.columns(6)
-                m1.metric("Total Files", metrics.get("total_files", 0))
-                m2.metric("Python Files", metrics.get("python_files", 0))
-                m3.metric("Modules", metrics.get("modules", 0))
-                m4.metric("Classes", metrics.get("classes", 0))
-                m5.metric("Functions", metrics.get("functions", 0))
-                m6.metric("Endpoints", metrics.get("endpoints", 0))
-
-                m7, m8, m9, m10, m11, m12 = st.columns(6)
-                m7.metric("Services", metrics.get("services", 0))
-                m8.metric("Database Refs", metrics.get("database_models", 0))
-                m9.metric("Test Targets", metrics.get("test_functions", 0))
-                m10.metric("Dependencies", metrics.get("external_dependencies", 0))
-                m11.metric("Relationships", metrics.get("total_relationships", 0))
-                m12.metric("Diagnostics", metrics.get("diagnostics_count", 0))
-
-                # Exploration Tabs
-                tab_entities, tab_relationships, tab_graph, tab_diagnostics = st.tabs(
-                    ["Entities", "Relationships", "Dependency Graph", "Diagnostics"]
-                )
-
-                with tab_entities:
-                    ent_code, ent_data = make_api_request(f"{api_url}/analyses/{active_run_id}/entities?limit=200")
-                    items = ent_data.get("items", []) if ent_code == 200 and ent_data else []
-                    if items:
-                        st.dataframe(items, use_container_width=True)
-                    else:
-                        st.info("No entities found.")
-
-                with tab_relationships:
-                    rel_code, rel_data = make_api_request(f"{api_url}/analyses/{active_run_id}/relationships?limit=200")
-                    rels = rel_data.get("items", []) if rel_code == 200 and rel_data else []
-                    if rels:
-                        st.dataframe(rels, use_container_width=True)
-                    else:
-                        st.info("No relationships found.")
-
-                with tab_graph:
-                    st.markdown("#### Interactive Dependency Graph Explorer")
-                    st.caption("Force-directed interactive visual graph. Drag nodes, zoom, or hover to inspect symbol details.")
-                    
-                    g_nodes_code, g_nodes_data = make_api_request(f"{api_url}/analyses/{active_run_id}/graph/nodes?limit=1500")
-                    g_nodes = g_nodes_data.get("items", []) if g_nodes_code == 200 and g_nodes_data else []
-
-                    g_rels_code, g_rels_data = make_api_request(f"{api_url}/analyses/{active_run_id}/graph/relationships?limit=1500")
-                    g_rels = g_rels_data.get("items", []) if g_rels_code == 200 and g_rels_data else []
-
-                    if g_nodes:
-                        render_graph_canvas(g_nodes, g_rels)
-                    else:
-                        st.info("No graph nodes returned yet. Neo4j may still be building the graph.")
-                        if st.button("Build / Rebuild Graph in Neo4j", type="secondary"):
-                            build_code, build_res = make_api_request(
-                                f"{api_url}/analyses/{active_run_id}/graph/build",
-                                method="POST",
-                            )
-                            if build_code in (200, 202):
-                                st.success("Graph build triggered! Refreshing...")
-                                time.sleep(2)
-                                st.rerun()
-                            else:
-                                st.error(f"Failed to trigger graph build: {build_res}")
-
-                    st.info("You can also run custom Cypher queries in the dedicated [Neo4j Browser](http://localhost:7474) (user: `neo4j` / pass: `password`).")
-
-                    with st.expander(f"Raw Graph Data ({len(g_nodes)} Nodes, {len(g_rels)} Relationships)"):
-                        g_col1, g_col2 = st.columns(2)
-                        with g_col1:
-                            st.markdown(f"**Graph Nodes ({len(g_nodes)})**")
-                            if g_nodes:
-                                st.dataframe(g_nodes)
-                        with g_col2:
-                            st.markdown(f"**Graph Relationships ({len(g_rels)})**")
-                            if g_rels:
-                                st.dataframe(g_rels)
-
-                with tab_diagnostics:
-                    diag_code, diag_data = make_api_request(f"{api_url}/analyses/{active_run_id}/diagnostics?limit=100")
-                    diags = diag_data.get("items", []) if diag_code == 200 and diag_data else []
-                    if diags:
-                        st.dataframe(diags, use_container_width=True)
-                    else:
-                        st.success("Clean analysis: 0 diagnostics or syntax errors encountered.")
-
-            elif run_status == "FAILED":
-                status_placeholder.error(f"Analysis FAILED: {run_record.get('error_message')}")
-
-    with tab_version_diff:
-        with st.container(border=True):
-            st.markdown(
-                """
-                <div style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1.2px; font-weight: 800; color: var(--nb-text-muted); margin-bottom: 2px;">
-                  Version & Change Impact Engine
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-            col_b1, col_b2 = st.columns([5, 1])
-            with col_b1:
-                st.subheader("Version & Change Impact Analyzer (F04)")
-                st.caption("Compare Git branches, commits, or pull request revisions to detect code symbol deltas, breaking changes, and blast radius.")
-            with col_b2:
-                st.write("")
-                refresh_branches = st.button("Sync Git", help="Fetch latest branches from Git remote", use_container_width=True)
-            
-            b_code, b_data = make_api_request(f"{api_url}/repositories/{selected_repo_id}/branches")
-            branches_list = b_data.get("branches", ["main"]) if b_code == 200 and b_data else ["main"]
-            default_branch = b_data.get("default_branch", "main") if b_code == 200 and b_data else "main"
-
-            diff_mode = st.radio(
-                "Comparison Mode",
-                ["Branch vs Branch", "Quick 2-Commit Diff (Branch~1 vs Branch)", "Custom Commit Range"],
-                horizontal=True,
-            )
-
-            d_col1, d_col2, d_col3 = st.columns([2, 2, 1])
-
-            if diff_mode == "Branch vs Branch":
-                with d_col1:
-                    base_branch = st.selectbox("Base Branch (e.g. main/production)", options=branches_list, index=0)
-                with d_col2:
-                    target_idx = 1 if len(branches_list) > 1 else 0
-                    target_branch = st.selectbox("Target Branch (e.g. feature/bugfix)", options=branches_list, index=target_idx)
-                base_ref_val = base_branch
-                target_ref_val = target_branch
-            elif diff_mode == "Quick 2-Commit Diff (Branch~1 vs Branch)":
-                with d_col1:
-                    def_idx = branches_list.index(default_branch) if default_branch in branches_list else 0
-                    quick_branch = st.selectbox("Select Branch to Diff (Last 2 Commits)", options=branches_list, index=def_idx)
-                with d_col2:
-                    st.text_input("Base Revision", value=f"{quick_branch}~1", disabled=True)
-                    st.text_input("Target Revision", value=f"{quick_branch}", disabled=True)
-                base_ref_val = f"{quick_branch}~1"
-                target_ref_val = quick_branch
-            else:
-                with d_col1:
-                    base_ref_val = st.text_input("Base Commit SHA / Branch / Tag", value="HEAD~1")
-                with d_col2:
-                    target_ref_val = st.text_input("Target Commit SHA / Branch / Tag", value="HEAD")
-
-            with d_col3:
-                st.write("")
-                st.write("")
-                run_diff_btn = st.button("Run Change Analysis", type="primary", use_container_width=True)
-
-        if run_diff_btn:
-            with st.spinner("Analyzing semantic changes, signature alterations, and blast radius..."):
-                diff_code, diff_res = make_api_request(
-                    f"{api_url}/analyses/compare",
+            if trigger_btn:
+                patterns = [p.strip() for p in exclude_patterns_str.split(",") if p.strip()]
+                trigger_payload = {"target_ref": target_ref or None, "exclude_patterns": patterns}
+                trigger_code, trigger_res = make_api_request(
+                    f"{api_url}/repositories/{selected_repo_id}/analyze",
                     method="POST",
-                    payload={
-                        "repository_id": selected_repo_id,
-                        "base_ref": base_ref_val,
-                        "target_ref": target_ref_val,
-                    },
-                    timeout=120.0,
+                    payload=trigger_payload,
                 )
-                if diff_code == 201 and diff_res:
-                    st.session_state["active_diff_id"] = diff_res["comparison_id"]
-                    st.success(f"Change comparison completed! ID: `{diff_res['comparison_id']}`")
-                else:
-                    st.error(f"Comparison failed ({diff_code}): {diff_res}")
 
-        active_diff_id = st.session_state.get("active_diff_id")
-        if active_diff_id:
-            d_detail_code, d_detail = make_api_request(f"{api_url}/analyses/compare/{active_diff_id}", timeout=60.0)
-            if d_detail_code == 200 and d_detail:
+                if trigger_code == 202 and trigger_res:
+                    run_id = trigger_res["id"]
+                    st.session_state["active_run_id"] = run_id
+                    st.success(f"Analysis triggered! Run ID: `{run_id}`")
+                else:
+                    st.error(f"Failed to trigger analysis: {trigger_res}")
+
+            active_run_id = st.session_state.get("active_run_id")
+
+            # Polling & Display Section
+            if active_run_id:
+                st.divider()
+                st.subheader(f"Analysis Run: `{active_run_id}`")
+
+                status_placeholder = st.empty()
+                poll_count = 0
+                run_status = "PENDING"
+                run_record: dict[str, Any] = {}
+
+                while poll_count < 30 and run_status in ("PENDING", "IN_PROGRESS"):
+                    status_code, run_res = make_api_request(f"{api_url}/analyses/{active_run_id}")
+                    if status_code == 200 and run_res:
+                        run_record = run_res
+                        run_status = run_record.get("status", "UNKNOWN")
+                        status_placeholder.info(f"Analysis Status: **{run_status}** (polling...)")
+                        if run_status in ("COMPLETED", "FAILED"):
+                            break
+                    time.sleep(1.0)
+                    poll_count += 1
+
+                if run_status == "COMPLETED":
+                    status_placeholder.success(
+                        f"Analysis **COMPLETED** in {run_record.get('duration_ms', 0):.1f} ms | Commit: `{run_record.get('commit_hash', 'N/A')}`"
+                    )
+
+                    # Summary Metrics
+                    sum_code, sum_data = make_api_request(f"{api_url}/analyses/{active_run_id}/summary")
+                    metrics = sum_data.get("metrics", {}) if sum_code == 200 and sum_data else {}
+
+                    m1, m2, m3, m4, m5, m6 = st.columns(6)
+                    m1.metric("Total Files", metrics.get("total_files", 0))
+                    m2.metric("Python Files", metrics.get("python_files", 0))
+                    m3.metric("Modules", metrics.get("modules", 0))
+                    m4.metric("Classes", metrics.get("classes", 0))
+                    m5.metric("Functions", metrics.get("functions", 0))
+                    m6.metric("Endpoints", metrics.get("endpoints", 0))
+
+                    m7, m8, m9, m10, m11, m12 = st.columns(6)
+                    m7.metric("Services", metrics.get("services", 0))
+                    m8.metric("Database Refs", metrics.get("database_models", 0))
+                    m9.metric("Test Targets", metrics.get("test_functions", 0))
+                    m10.metric("Dependencies", metrics.get("external_dependencies", 0))
+                    m11.metric("Relationships", metrics.get("total_relationships", 0))
+                    m12.metric("Diagnostics", metrics.get("diagnostics_count", 0))
+
+                    # Exploration Tabs
+                    tab_entities, tab_relationships, tab_graph, tab_diagnostics = st.tabs(
+                        ["Entities", "Relationships", "Dependency Graph", "Diagnostics"]
+                    )
+
+                    with tab_entities:
+                        ent_code, ent_data = make_api_request(f"{api_url}/analyses/{active_run_id}/entities?limit=200")
+                        items = ent_data.get("items", []) if ent_code == 200 and ent_data else []
+                        if items:
+                            st.dataframe(items, use_container_width=True)
+                        else:
+                            st.info("No entities found.")
+
+                    with tab_relationships:
+                        rel_code, rel_data = make_api_request(f"{api_url}/analyses/{active_run_id}/relationships?limit=200")
+                        rels = rel_data.get("items", []) if rel_code == 200 and rel_data else []
+                        if rels:
+                            st.dataframe(rels, use_container_width=True)
+                        else:
+                            st.info("No relationships found.")
+
+                    with tab_graph:
+                        st.markdown("#### Interactive Dependency Graph Explorer")
+                        st.caption("Force-directed interactive visual graph. Drag nodes, zoom, or hover to inspect symbol details.")
+                    
+                        g_nodes_code, g_nodes_data = make_api_request(f"{api_url}/analyses/{active_run_id}/graph/nodes?limit=1500")
+                        g_nodes = g_nodes_data.get("items", []) if g_nodes_code == 200 and g_nodes_data else []
+
+                        g_rels_code, g_rels_data = make_api_request(f"{api_url}/analyses/{active_run_id}/graph/relationships?limit=1500")
+                        g_rels = g_rels_data.get("items", []) if g_rels_code == 200 and g_rels_data else []
+
+                        if g_nodes:
+                            render_graph_canvas(g_nodes, g_rels)
+                        else:
+                            st.info("No graph nodes returned yet. Neo4j may still be building the graph.")
+                            if st.button("Build / Rebuild Graph in Neo4j", type="secondary"):
+                                build_code, build_res = make_api_request(
+                                    f"{api_url}/analyses/{active_run_id}/graph/build",
+                                    method="POST",
+                                )
+                                if build_code in (200, 202):
+                                    st.success("Graph build triggered! Refreshing...")
+                                    time.sleep(2)
+                                    st.rerun()
+                                else:
+                                    st.error(f"Failed to trigger graph build: {build_res}")
+
+                        st.info("You can also run custom Cypher queries in the dedicated [Neo4j Browser](http://localhost:7474) (user: `neo4j` / pass: `password`).")
+
+                        with st.expander(f"Raw Graph Data ({len(g_nodes)} Nodes, {len(g_rels)} Relationships)"):
+                            g_col1, g_col2 = st.columns(2)
+                            with g_col1:
+                                st.markdown(f"**Graph Nodes ({len(g_nodes)})**")
+                                if g_nodes:
+                                    st.dataframe(g_nodes)
+                            with g_col2:
+                                st.markdown(f"**Graph Relationships ({len(g_rels)})**")
+                                if g_rels:
+                                    st.dataframe(g_rels)
+
+                    with tab_diagnostics:
+                        diag_code, diag_data = make_api_request(f"{api_url}/analyses/{active_run_id}/diagnostics?limit=100")
+                        diags = diag_data.get("items", []) if diag_code == 200 and diag_data else []
+                        if diags:
+                            st.dataframe(diags, use_container_width=True)
+                        else:
+                            st.success("Clean analysis: 0 diagnostics or syntax errors encountered.")
+
+                elif run_status == "FAILED":
+                    status_placeholder.error(f"Analysis FAILED: {run_record.get('error_message')}")
+
+        with tab_version_diff:
+            with st.container(border=True):
+                st.markdown(
+                    """
+                    <div style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1.2px; font-weight: 800; color: var(--nb-text-muted); margin-bottom: 2px;">
+                      Version & Change Impact Engine
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+                col_b1, col_b2 = st.columns([5, 1])
+                with col_b1:
+                    st.subheader("Version & Change Impact Analyzer (F04)")
+                    st.caption("Compare Git branches, commits, or pull request revisions to detect code symbol deltas, breaking changes, and blast radius.")
+                with col_b2:
+                    st.write("")
+                    refresh_branches = st.button("Sync Git", help="Fetch latest branches from Git remote", use_container_width=True)
+            
+                b_code, b_data = make_api_request(f"{api_url}/repositories/{selected_repo_id}/branches")
+                branches_list = b_data.get("branches", ["main"]) if b_code == 200 and b_data else ["main"]
+                default_branch = b_data.get("default_branch", "main") if b_code == 200 and b_data else "main"
+
+                diff_mode = st.radio(
+                    "Comparison Mode",
+                    ["Branch vs Branch", "Quick 2-Commit Diff (Branch~1 vs Branch)", "Custom Commit Range"],
+                    horizontal=True,
+                )
+
+                d_col1, d_col2, d_col3 = st.columns([2, 2, 1])
+
+                if diff_mode == "Branch vs Branch":
+                    with d_col1:
+                        base_branch = st.selectbox("Base Branch (e.g. main/production)", options=branches_list, index=0)
+                    with d_col2:
+                        target_idx = 1 if len(branches_list) > 1 else 0
+                        target_branch = st.selectbox("Target Branch (e.g. feature/bugfix)", options=branches_list, index=target_idx)
+                    base_ref_val = base_branch
+                    target_ref_val = target_branch
+                elif diff_mode == "Quick 2-Commit Diff (Branch~1 vs Branch)":
+                    with d_col1:
+                        def_idx = branches_list.index(default_branch) if default_branch in branches_list else 0
+                        quick_branch = st.selectbox("Select Branch to Diff (Last 2 Commits)", options=branches_list, index=def_idx)
+                    with d_col2:
+                        st.text_input("Base Revision", value=f"{quick_branch}~1", disabled=True)
+                        st.text_input("Target Revision", value=f"{quick_branch}", disabled=True)
+                    base_ref_val = f"{quick_branch}~1"
+                    target_ref_val = quick_branch
+                else:
+                    with d_col1:
+                        base_ref_val = st.text_input("Base Commit SHA / Branch / Tag", value="HEAD~1")
+                    with d_col2:
+                        target_ref_val = st.text_input("Target Commit SHA / Branch / Tag", value="HEAD")
+
+                with d_col3:
+                    st.write("")
+                    st.write("")
+                    run_diff_btn = st.button("Run Change Analysis", type="primary", use_container_width=True)
+
+            if run_diff_btn:
+                with st.spinner("Analyzing semantic changes, signature alterations, and blast radius..."):
+                    diff_code, diff_res = make_api_request(
+                        f"{api_url}/analyses/compare",
+                        method="POST",
+                        payload={
+                            "repository_id": selected_repo_id,
+                            "base_ref": base_ref_val,
+                            "target_ref": target_ref_val,
+                        },
+                        timeout=120.0,
+                    )
+                    if diff_code == 201 and diff_res:
+                        st.session_state["active_diff_id"] = diff_res["comparison_id"]
+                        st.success(f"Change comparison completed! ID: `{diff_res['comparison_id']}`")
+                    else:
+                        st.error(f"Comparison failed ({diff_code}): {diff_res}")
+
+            active_diff_id = st.session_state.get("active_diff_id")
+            if active_diff_id:
+                d_detail_code, d_detail = make_api_request(f"{api_url}/analyses/compare/{active_diff_id}", timeout=60.0)
+                if d_detail_code == 200 and d_detail:
+                    st.divider()
+
+                    # Risk Level Banner & Metrics
+                    risk_lvl = d_detail.get("risk_level", "LOW")
+                    is_dark_mode = theme_mode == "Dark"
+                    risk_colors = {
+                        "CRITICAL": "#ef4444" if is_dark_mode else "#dc2626",
+                        "HIGH": "#f97316" if is_dark_mode else "#ea580c",
+                        "MEDIUM": "#f59e0b" if is_dark_mode else "#d97706",
+                        "LOW": "#22c55e" if is_dark_mode else "#16a34a",
+                    }
+                    r_color = risk_colors.get(risk_lvl, "#16a34a")
+                    border_color = r_color if risk_lvl in ("CRITICAL", "HIGH") else "var(--nb-border)"
+
+                    diff_banner_html = f"""
+                    <div style="background: var(--nb-surface); border: 2px solid {border_color}; border-left: 8px solid {r_color}; border-radius: 2px; padding: 18px 22px; margin-bottom: 20px; box-shadow: var(--nb-shadow-lg);">
+                      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
+                        <div>
+                          <span style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1.5px; color: var(--nb-text-muted); font-weight: 800; font-family: 'Inter', sans-serif;">Overall Change Impact Risk</span>
+                          <h2 style="margin: 4px 0 0 0; color: {r_color}; font-size: 1.9rem; font-weight: 800; letter-spacing: 0.5px; font-family: 'Inter', sans-serif;">{risk_lvl} RISK</h2>
+                          <div style="font-size: 0.85rem; color: var(--nb-text-muted); margin-top: 6px; font-family: 'JetBrains Mono', monospace;">
+                            Comparing <code>{d_detail.get('base_ref')}</code> ({d_detail.get('base_commit_hash', '')[:7]}) ➜ <code>{d_detail.get('target_ref')}</code> ({d_detail.get('target_commit_hash', '')[:7]})
+                          </div>
+                        </div>
+                        <div style="background: var(--nb-surface); border: 2px solid var(--nb-border); border-radius: 2px; padding: 10px 18px; text-align: right; box-shadow: var(--nb-shadow-sm);">
+                          <div style="font-size: 1.6rem; font-weight: 800; color: {r_color}; font-family: 'JetBrains Mono', monospace;">{d_detail['summary'].get('total_breaking_changes', 0)}</div>
+                          <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--nb-text-muted); font-weight: 700;">Breaking Changes</div>
+                        </div>
+                      </div>
+                    </div>
+                    """
+                    render_html(diff_banner_html)
+
+                    summ = d_detail.get("summary", {})
+                    rc1, rc2, rc3, rc4, rc5 = st.columns(5)
+                    rc1.metric("Files Changed", summ.get("total_files_changed", 0))
+                    rc2.metric("Insertions (+)", f"+{summ.get('total_insertions', 0)}")
+                    rc3.metric("Deletions (-)", f"-{summ.get('total_deletions', 0)}")
+                    rc4.metric("Symbols Changed", summ.get("total_symbols_changed", 0))
+                    rc5.metric("Breaking Changes", summ.get("total_breaking_changes", 0))
+
+                    # Subtabs
+                    tab_blast, tab_breaking, tab_files, tab_commits = st.tabs([
+                        "Impact Graph",
+                        "Breaking Changes",
+                        "File Diffs",
+                        "Commit Log",
+                    ])
+
+                    with tab_blast:
+                        st.markdown("#### Change Propagation & Impact Graph")
+                        st.caption("Interactive force-directed graph tracking altered code symbols, breaking changes, and all affected downstream callers across the repository.")
+
+                        impact_graph_json = build_impact_graph_json(d_detail)
+                        graph_nodes = impact_graph_json.get("graph", {}).get("nodes", [])
+                        blast_items = d_detail.get("blast_radius", [])
+                        sym_count = summ.get("total_symbols_changed", 0)
+
+                        # Action Bar for Graph JSON Download & Inspection
+                        col_g1, col_g2 = st.columns([3, 1])
+                        with col_g1:
+                            st.markdown(
+                                f"**Graph Summary:** `{len(graph_nodes)}` nodes ({impact_graph_json['summary'].get('total_breaking_changes', 0)} breaking, "
+                                f"{sym_count} changed, {len(blast_items)} downstream callers) &bull; "
+                                f"`{len(impact_graph_json.get('graph', {}).get('edges', []))}` dependency edges"
+                            )
+                        with col_g2:
+                            st.download_button(
+                                label="Download Graph JSON",
+                                data=json.dumps(impact_graph_json, indent=2),
+                                file_name=f"trace_impact_graph_{active_diff_id[:8]}.json",
+                                mime="application/json",
+                                use_container_width=True,
+                                key=f"dl_graph_{active_diff_id}",
+                            )
+
+                        # Interactive Graph Visualization Canvas
+                        if graph_nodes:
+                            render_impact_graph_canvas(d_detail)
+                        elif sym_count == 0:
+                            st.info("Zero code symbols (functions, classes, endpoints) were modified in this changeset. All changes were in non-code or documentation files, so no code nodes or graph dependencies are affected.")
+                        else:
+                            st.success("Zero downstream callers or dependents are impacted. The modified symbols are self-contained with no incoming references in the repository graph.")
+
+                        # Downstream Callers Table
+                        if blast_items:
+                            st.markdown(f"#### {len(blast_items)} Impacted Downstream Components")
+                            st.dataframe(blast_items, use_container_width=True)
+
+                        # Expandable JSON Viewer for full transparency
+                        with st.expander("View Complete Change Impact Graph JSON"):
+                            st.json(impact_graph_json)
+
+                    with tab_breaking:
+                        sym_diffs = d_detail.get("symbol_diffs", [])
+                        breaking_syms = [s for s in sym_diffs if s.get("is_breaking")]
+                        non_breaking_syms = [s for s in sym_diffs if not s.get("is_breaking")]
+
+                        if breaking_syms:
+                            st.markdown(f"#### {len(breaking_syms)} Breaking Changes Detected")
+                            for bs in breaking_syms:
+                                with st.container():
+                                    breaking_card_html = f"""
+                                    <div style="background: var(--nb-surface); border: 2px solid #dc2626; border-left: 6px solid #dc2626; padding: 14px 16px; border-radius: 2px; margin-bottom: 12px; box-shadow: var(--nb-shadow);">
+                                      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
+                                        <strong style="color: var(--nb-text); font-size: 1rem; font-family: 'JetBrains Mono', monospace;">[{html.escape(bs.get('kind', '').upper())}] {html.escape(bs.get('qualified_name', ''))}</strong>
+                                        <span style="background: #dc2626; color: #FFFFFF; border: 1.5px solid var(--nb-border); padding: 2px 8px; border-radius: 2px; font-size: 0.75rem; font-weight: 800; font-family: 'JetBrains Mono', monospace;">BREAKING</span>
+                                      </div>
+                                      <div style="color: var(--nb-text); margin-top: 6px; font-size: 0.9rem;"><strong>Reason:</strong> {html.escape(bs.get('breaking_reason', 'Signature altered incompatibly'))}</div>
+                                      <div style="margin-top: 8px; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; background: var(--nb-code-bg); border: 1px solid var(--nb-border); padding: 8px 10px; border-radius: 2px;">
+                                        <div><span style="color: #dc2626; font-weight: 700;">- Old:</span> {html.escape(bs.get('old_signature') or 'None (Added)')}</div>
+                                        <div><span style="color: #16a34a; font-weight: 700;">+ New:</span> {html.escape(bs.get('new_signature') or 'None (Deleted)')}</div>
+                                      </div>
+                                      <div style="font-size: 0.75rem; color: var(--nb-text-muted); margin-top: 6px; font-family: 'JetBrains Mono', monospace;">File: {html.escape(bs.get('file_path', ''))}</div>
+                                    </div>
+                                    """
+                                    render_html(breaking_card_html)
+                        else:
+                            st.success("Zero breaking changes detected between these revisions.")
+
+                        if non_breaking_syms:
+                            st.markdown(f"#### {len(non_breaking_syms)} Non-Breaking Symbol Modifications")
+                            st.dataframe(non_breaking_syms, use_container_width=True)
+
+                    with tab_files:
+                        st.markdown("#### File-Level Diffs")
+                        f_diffs = d_detail.get("file_diffs", [])
+                        if f_diffs:
+                            for fd in f_diffs:
+                                c_type = fd.get("change_type", "MODIFIED")
+                                path_disp = fd.get("new_path") or fd.get("old_path") or "unknown"
+                                ins = fd.get("insertions", 0)
+                                dels = fd.get("deletions", 0)
+
+                                badge_config = {
+                                    "MODIFIED": {"bg": "#FACC15", "text": "#000000", "label": "MODIFIED"},
+                                    "ADDED": {"bg": "#16A34A", "text": "#FFFFFF", "label": "ADDED"},
+                                    "DELETED": {"bg": "#DC2626", "text": "#FFFFFF", "label": "DELETED"},
+                                    "RENAMED": {"bg": "#2563EB", "text": "#FFFFFF", "label": "RENAMED"},
+                                }.get(c_type, {"bg": "#FACC15", "text": "#000000", "label": c_type})
+
+                                file_bar_html = f"""
+                                <div style="background: var(--nb-surface); border: 2px solid var(--nb-border); border-radius: 2px; padding: 10px 14px; margin-top: 10px; margin-bottom: 6px; box-shadow: var(--nb-shadow); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                                  <div style="display: flex; align-items: center; gap: 10px;">
+                                    <span style="background: {badge_config['bg']}; color: {badge_config['text']}; border: 1.5px solid var(--nb-border); border-radius: 2px; font-size: 0.72rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; padding: 2px 8px; text-transform: uppercase;">{badge_config['label']}</span>
+                                    <code style="font-size: 0.92rem; font-weight: 700; color: var(--nb-text); background: transparent; border: none; padding: 0;">{path_disp}</code>
+                                  </div>
+                                  <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; font-weight: 700;">
+                                    <span style="color: #16a34a;">+{ins}</span> <span style="color: #dc2626;">-{dels}</span>
+                                  </div>
+                                </div>
+                                """
+                                render_html(file_bar_html)
+                                with st.expander(f"Diff: {path_disp}", expanded=True):
+                                    diff_html = render_colored_diff(fd)
+                                    render_html(diff_html)
+                        else:
+                            st.info("No file diffs recorded.")
+
+                    with tab_commits:
+                        st.markdown("#### Commits in Changeset")
+                        msgs = d_detail.get("commit_messages", [])
+                        if msgs:
+                            for idx, m in enumerate(msgs, 1):
+                                st.markdown(f"{idx}. `{m}`")
+                        else:
+                            st.info("No commit messages retrieved for this comparison.")
+
+        with tab_impact_engine:
+            st.subheader("Transformation Risk & Behavioral Impact Propagation Engine (F05)")
+            st.caption(
+                "Bridges Git Diff hunks with AST scopes, evaluates multi-hop blast radius across inverted call graphs ($G^T$), "
+                "infers diff syntax deltas (def/return/raise), and synthesizes actionable remediation checklists."
+            )
+
+            # Mode indicator badge
+            if enable_ai and openrouter_key.strip():
+                mode_badge_html = f"""
+                <div style="background: var(--nb-surface); border: 2px solid var(--nb-border); border-radius: 2px; padding: 6px 14px; margin-bottom: 16px; display: inline-flex; align-items: center; gap: 8px; box-shadow: var(--nb-shadow-sm);">
+                    <span style="font-size: 0.85rem; font-weight: 700; color: var(--nb-text); font-family: 'Inter', sans-serif;">Mode: AI-Enriched Synthesis</span>
+                    <span style="background: #7c3aed; color: #ffffff; border: 1px solid var(--nb-border); padding: 2px 8px; border-radius: 2px; font-size: 0.75rem; font-family: 'JetBrains Mono', monospace; font-weight: 700;">{openrouter_model}</span>
+                </div>
+                """
+            else:
+                mode_badge_html = """
+                <div style="background: var(--nb-surface); border: 2px solid var(--nb-border); border-radius: 2px; padding: 6px 14px; margin-bottom: 16px; display: inline-flex; align-items: center; gap: 8px; box-shadow: var(--nb-shadow-sm);">
+                    <span style="font-size: 0.85rem; font-weight: 700; color: var(--nb-text); font-family: 'Inter', sans-serif;">Mode: Deterministic Heuristic Engine</span>
+                    <span style="background: #16a34a; color: #ffffff; border: 1px solid var(--nb-border); padding: 2px 8px; border-radius: 2px; font-size: 0.75rem; font-weight: 700; font-family: 'JetBrains Mono', monospace;">100% Offline · Zero Latency</span>
+                </div>
+                """
+            render_html(mode_badge_html)
+
+            col_i1, col_i2, col_i3 = st.columns([2, 2, 1])
+            with col_i1:
+                imp_base = st.text_input("Base Revision (Commit SHA / Branch / Tag)", value="HEAD~1", key="f05_base")
+            with col_i2:
+                imp_target = st.text_input("Target Revision (Commit SHA / Branch / Tag)", value="HEAD", key="f05_target")
+            with col_i3:
+                st.write("")
+                st.write("")
+                run_impact_btn = st.button("Evaluate Impact & Risk", type="primary", use_container_width=True)
+
+            if run_impact_btn:
+                with st.spinner("Executing mathematical interval intersection, transposed BFS blast radius, and delta inference..."):
+                    payload = {
+                        "repository_id": selected_repo_id,
+                        "base_ref": imp_base.strip() or "HEAD~1",
+                        "target_ref": imp_target.strip() or "HEAD",
+                        "llm_config": {
+                            "enabled": bool(enable_ai and openrouter_key.strip()),
+                            "api_key": openrouter_key.strip() if enable_ai else None,
+                            "model": openrouter_model if enable_ai else "anthropic/claude-3.5-sonnet",
+                        },
+                    }
+                    imp_code, imp_res = make_api_request(
+                        f"{api_url}/impact/evaluate",
+                        method="POST",
+                        payload=payload,
+                        timeout=120.0,
+                    )
+                    if imp_code in (200, 201) and imp_res:
+                        st.session_state["active_impact_data"] = imp_res
+                        st.success("Impact & Risk evaluation completed successfully!")
+                    else:
+                        st.error(f"Impact evaluation failed ({imp_code}): {imp_res}")
+
+            active_impact = st.session_state.get("active_impact_data")
+            if active_impact:
                 st.divider()
 
-                # Risk Level Banner & Metrics
-                risk_lvl = d_detail.get("risk_level", "LOW")
+                meta = active_impact.get("analysis_metadata", {})
+                risk_meta = active_impact.get("risk_analysis", {})
+                risk_lvl = risk_meta.get("risk_level", "LOW")
+
                 is_dark_mode = theme_mode == "Dark"
                 risk_colors = {
                     "CRITICAL": "#ef4444" if is_dark_mode else "#dc2626",
@@ -2160,987 +2929,767 @@ def run_app() -> None:
                     "MEDIUM": "#f59e0b" if is_dark_mode else "#d97706",
                     "LOW": "#22c55e" if is_dark_mode else "#16a34a",
                 }
-                r_color = risk_colors.get(risk_lvl, "#16a34a")
-                border_color = r_color if risk_lvl in ("CRITICAL", "HIGH") else "var(--nb-border)"
+                r_col = risk_colors.get(risk_lvl, "#16a34a")
+                border_col = r_col if risk_lvl in ("CRITICAL", "HIGH") else "var(--nb-border)"
 
-                diff_banner_html = f"""
-                <div style="background: var(--nb-surface); border: 2px solid {border_color}; border-left: 8px solid {r_color}; border-radius: 2px; padding: 18px 22px; margin-bottom: 20px; box-shadow: var(--nb-shadow-lg);">
+                # Risk Summary Header Banner
+                risk_banner_html = f"""
+                <div style="background: var(--nb-surface); border: 2px solid {border_col}; border-left: 8px solid {r_col}; border-radius: 2px; padding: 20px 22px; margin-bottom: 22px; box-shadow: var(--nb-shadow-lg);">
                   <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
                     <div>
-                      <span style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1.5px; color: var(--nb-text-muted); font-weight: 800; font-family: 'Inter', sans-serif;">Overall Change Impact Risk</span>
-                      <h2 style="margin: 4px 0 0 0; color: {r_color}; font-size: 1.9rem; font-weight: 800; letter-spacing: 0.5px; font-family: 'Inter', sans-serif;">{risk_lvl} RISK</h2>
+                      <div style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1.5px; color: var(--nb-text-muted); font-weight: 800; font-family: 'Inter', sans-serif;">ARCHITECTURAL RISK ASSESSMENT</div>
+                      <h2 style="margin: 4px 0 0 0; color: {r_col}; font-size: 2rem; font-weight: 800; letter-spacing: 0.5px; font-family: 'Inter', sans-serif;">{risk_lvl} RISK</h2>
                       <div style="font-size: 0.85rem; color: var(--nb-text-muted); margin-top: 6px; font-family: 'JetBrains Mono', monospace;">
-                        Comparing <code>{d_detail.get('base_ref')}</code> ({d_detail.get('base_commit_hash', '')[:7]}) ➜ <code>{d_detail.get('target_ref')}</code> ({d_detail.get('target_commit_hash', '')[:7]})
+                        Comparing <code>{meta.get('base_commit', '')[:7]}</code> ➜ <code>{meta.get('current_commit', '')[:7]}</code>
+                        &bull; Reasoning Mode: <strong>{meta.get('reasoning_mode', 'HEURISTIC')}</strong>
                       </div>
                     </div>
-                    <div style="background: var(--nb-surface); border: 2px solid var(--nb-border); border-radius: 2px; padding: 10px 18px; text-align: right; box-shadow: var(--nb-shadow-sm);">
-                      <div style="font-size: 1.6rem; font-weight: 800; color: {r_color}; font-family: 'JetBrains Mono', monospace;">{d_detail['summary'].get('total_breaking_changes', 0)}</div>
-                      <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--nb-text-muted); font-weight: 700;">Breaking Changes</div>
+                    <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                      <div style="background: var(--nb-surface); border: 2px solid var(--nb-border); border-radius: 2px; padding: 8px 16px; text-align: center; box-shadow: var(--nb-shadow-sm);">
+                        <div style="font-size: 1.5rem; font-weight: 800; color: {r_col}; font-family: 'JetBrains Mono', monospace;">{meta.get('total_callers_at_risk', 0)}</div>
+                        <div style="font-size: 0.72rem; text-transform: uppercase; color: var(--nb-text-muted); font-weight: 700;">Callers At Risk</div>
+                      </div>
+                      <div style="background: var(--nb-surface); border: 2px solid var(--nb-border); border-radius: 2px; padding: 8px 16px; text-align: center; box-shadow: var(--nb-shadow-sm);">
+                        <div style="font-size: 1.5rem; font-weight: 800; color: var(--nb-accent-blue); font-family: 'JetBrains Mono', monospace;">{meta.get('total_impacted_downstream_files', 0)}</div>
+                        <div style="font-size: 0.72rem; text-transform: uppercase; color: var(--nb-text-muted); font-weight: 700;">Downstream Files</div>
+                      </div>
                     </div>
                   </div>
                 </div>
                 """
-                render_html(diff_banner_html)
+                render_html(risk_banner_html)
 
-                summ = d_detail.get("summary", {})
-                rc1, rc2, rc3, rc4, rc5 = st.columns(5)
-                rc1.metric("Files Changed", summ.get("total_files_changed", 0))
-                rc2.metric("Insertions (+)", f"+{summ.get('total_insertions', 0)}")
-                rc3.metric("Deletions (-)", f"-{summ.get('total_deletions', 0)}")
-                rc4.metric("Symbols Changed", summ.get("total_symbols_changed", 0))
-                rc5.metric("Breaking Changes", summ.get("total_breaking_changes", 0))
+                # Metric Cards
+                m_col1, m_col2, m_col3, m_col4 = st.columns(4)
+                m_col1.metric("Changed Entities", meta.get("total_changed_entities", 0))
+                m_col2.metric("Deleted Files", meta.get("total_deleted_files", 0))
+                m_col3.metric("Impacted Downstream Files", meta.get("total_impacted_downstream_files", 0))
+                m_col4.metric("Upstream Callers At Risk", meta.get("total_callers_at_risk", 0))
 
-                # Subtabs
-                tab_blast, tab_breaking, tab_files, tab_commits = st.tabs([
-                    "Impact Graph",
-                    "Breaking Changes",
-                    "File Diffs",
-                    "Commit Log",
+                # AI Remediation Directive (Where & What to Change)
+                ai_dir = active_impact.get("risk_analysis", {}).get("ai_directive") or active_impact.get("ai_directive")
+                if ai_dir:
+                    where_items = "".join(f"<li><code>{loc}</code></li>" for loc in ai_dir.get("where_to_change", [])) or "<li>All direct callers identified below</li>"
+                    what_items = "".join(f"<li>{act}</li>" for act in ai_dir.get("what_to_change", [])) or "<li>Verify and test call sites</li>"
+                    ai_dir_html = f"""
+                    <div style="background: var(--nb-surface); border: 2px solid var(--nb-border); border-top: 6px solid #7c3aed; border-radius: 2px; padding: 18px 20px; margin-top: 14px; margin-bottom: 20px; box-shadow: var(--nb-shadow-lg);">
+                      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                        <span style="font-size: 1.05rem; font-weight: 800; color: var(--nb-text); font-family: 'Inter', sans-serif;">AI Remediation Directive: Where & What to Change</span>
+                      </div>
+                      <div style="font-size: 0.92rem; color: var(--nb-text); margin-bottom: 14px; font-weight: 500;">
+                        {html.escape(ai_dir.get("executive_summary", ""))}
+                      </div>
+                      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                        <div style="background: var(--nb-code-bg); border: 1.5px solid var(--nb-border); border-radius: 2px; padding: 12px 14px; box-shadow: var(--nb-shadow-sm);">
+                          <strong style="color: var(--nb-text); font-size: 0.82rem; text-transform: uppercase; font-family: 'Inter', sans-serif; letter-spacing: 0.5px;">Where to Change:</strong>
+                          <ul style="margin: 6px 0 0 0; padding-left: 20px; font-size: 0.85rem; color: var(--nb-text);">
+                            {where_items}
+                          </ul>
+                        </div>
+                        <div style="background: var(--nb-code-bg); border: 1.5px solid var(--nb-border); border-radius: 2px; padding: 12px 14px; box-shadow: var(--nb-shadow-sm);">
+                          <strong style="color: var(--nb-text); font-size: 0.82rem; text-transform: uppercase; font-family: 'Inter', sans-serif; letter-spacing: 0.5px;">What to Change:</strong>
+                          <ul style="margin: 6px 0 0 0; padding-left: 20px; font-size: 0.85rem; color: var(--nb-text);">
+                            {what_items}
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                    """
+                    render_html(ai_dir_html)
+
+                # Subtabs for F05
+                t_graph, t_details, t_plan, t_json = st.tabs([
+                    "Call Graph",
+                    "Detailed Impacts",
+                    "Remediation Plan",
+                    "JSON Payload",
                 ])
 
-                with tab_blast:
-                    st.markdown("#### Change Propagation & Impact Graph")
-                    st.caption("Interactive force-directed graph tracking altered code symbols, breaking changes, and all affected downstream callers across the repository.")
+                with t_graph:
+                    st.markdown("#### Behavioral Impact Propagation Tree (G^T)")
+                    st.caption("Visualizes altered code entities and their direct/multi-hop upstream callers traced via transposed BFS traversal.")
 
-                    impact_graph_json = build_impact_graph_json(d_detail)
-                    graph_nodes = impact_graph_json.get("graph", {}).get("nodes", [])
-                    blast_items = d_detail.get("blast_radius", [])
-                    sym_count = summ.get("total_symbols_changed", 0)
+                    impact_data = active_impact.get("impact_analysis", {})
+                    detailed_list = impact_data.get("detailed_impacts", [])
 
-                    # Action Bar for Graph JSON Download & Inspection
-                    col_g1, col_g2 = st.columns([3, 1])
-                    with col_g1:
-                        st.markdown(
-                            f"**Graph Summary:** `{len(graph_nodes)}` nodes ({impact_graph_json['summary'].get('total_breaking_changes', 0)} breaking, "
-                            f"{sym_count} changed, {len(blast_items)} downstream callers) &bull; "
-                            f"`{len(impact_graph_json.get('graph', {}).get('edges', []))}` dependency edges"
-                        )
-                    with col_g2:
-                        st.download_button(
-                            label="Download Graph JSON",
-                            data=json.dumps(impact_graph_json, indent=2),
-                            file_name=f"trace_impact_graph_{active_diff_id[:8]}.json",
-                            mime="application/json",
-                            use_container_width=True,
-                            key=f"dl_graph_{active_diff_id}",
-                        )
+                    if detailed_list:
+                        for d in detailed_list:
+                            ent = d.get("entity", "entity")
+                            f_path = d.get("file", "")
+                            lines = d.get("lines_affected", [0, 0])
+                            callers = d.get("callers_at_risk", [])
+                            downstream = d.get("downstream_dependent_files", [])
+                            num_callers = len(callers)
+                            ent_type = d.get("entity_type", "function").upper()
 
-                    # Interactive Graph Visualization Canvas
-                    if graph_nodes:
-                        render_impact_graph_canvas(d_detail)
-                    elif sym_count == 0:
-                        st.info("Zero code symbols (functions, classes, endpoints) were modified in this changeset. All changes were in non-code or documentation files, so no code nodes or graph dependencies are affected.")
+                            badge_label = f"{num_callers} Callers At Risk" if num_callers > 0 else "Isolated (0 Callers)"
+
+                            with st.expander(f"{f_path}::{ent} (lines {lines[0]}-{lines[1]}) [{ent_type}] — {badge_label}", expanded=True):
+                                if callers:
+                                    st.markdown(f"**Impacts {len(callers)} Upstream Callers:**")
+                                    for c in callers:
+                                        dist = c.get("distance", 1)
+                                        c_name = c.get("qualified_name", "")
+                                        c_file = c.get("file_path", "")
+                                        c_chain = c.get("call_chain", [])
+
+                                        dist_badge = "Direct Caller (Depth 1)" if dist == 1 else f"Transitive Caller (Depth {dist})"
+                                        chain_str = " ➜ ".join(c_chain) if c_chain else f"{c_name} ➜ {ent}"
+
+                                        caller_card_html = f"""
+                                        <div style="background: var(--nb-surface); border: 1.5px solid var(--nb-border); border-left: 4px solid #f59e0b; padding: 10px 14px; border-radius: 2px; margin-bottom: 8px; box-shadow: var(--nb-shadow-sm);">
+                                          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
+                                            <span style="font-weight: 700; color: var(--nb-text); font-size: 0.9rem;">↳ impacts: <code>{html.escape(c_file)}::{html.escape(c_name)}</code></span>
+                                            <span style="font-size: 0.72rem; background: var(--nb-surface); border: 1px solid var(--nb-border); color: {'#dc2626' if dist == 1 else '#d97706'}; padding: 2px 8px; border-radius: 2px; font-weight: 800; font-family: 'JetBrains Mono', monospace;">{dist_badge}</span>
+                                          </div>
+                                          <div style="font-size: 0.8rem; color: var(--nb-text-muted); margin-top: 4px; font-family: 'JetBrains Mono', monospace;">
+                                            Call Chain: <span style="color: var(--nb-text); font-weight: 600;">{html.escape(chain_str)}</span>
+                                          </div>
+                                        </div>
+                                        """
+                                        render_html(caller_card_html)
+                                else:
+                                    render_html("<div style='color: #16a34a; font-size: 0.88rem; padding: 6px 0; font-weight: 700; font-family: \"JetBrains Mono\", Consolas, monospace;'>↳ No upstream callers invoke this modified entity directly or transitively.</div>")
+
+                                # Downstream non-code files
+                                other_downstream = [f for f in downstream if f != f_path]
+                                if other_downstream:
+                                    st.caption("**Referenced in Non-Code Files:**")
+                                    st.write(", ".join(f"`{f}`" for f in other_downstream))
                     else:
-                        st.success("Zero downstream callers or dependents are impacted. The modified symbols are self-contained with no incoming references in the repository graph.")
+                        st.info("No code symbols modified in this changeset.")
 
-                    # Downstream Callers Table
-                    if blast_items:
-                        st.markdown(f"#### {len(blast_items)} Impacted Downstream Components")
-                        st.dataframe(blast_items, use_container_width=True)
+                    # Render graphical flowchart in an expander if available
+                    dep_graph = active_impact.get("dependency_graph", {})
+                    mermaid_code = dep_graph.get("mermaid", "")
+                    if mermaid_code:
+                        with st.expander("View Graphical Call Graph Flowchart (Mermaid)", expanded=False):
+                            mermaid_html = f"""
+                            <!DOCTYPE html>
+                            <html>
+                            <head>
+                              <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+                              <script>mermaid.initialize({{startOnLoad: true, theme: '{'dark' if is_dark_mode else 'default'}'}});</script>
+                            </head>
+                            <body style="background: transparent; margin: 0; padding: 10px; color: {'#f8fafc' if is_dark_mode else '#09090b'};">
+                              <div class="mermaid">
+                                {mermaid_code}
+                              </div>
+                            </body>
+                            </html>
+                            """
+                            if components is not None:
+                                components.html(mermaid_html, height=350, scrolling=True)
+                            else:
+                                st.code(mermaid_code, language="mermaid")
 
-                    # Expandable JSON Viewer for full transparency
-                    with st.expander("View Complete Change Impact Graph JSON"):
-                        st.json(impact_graph_json)
+                    # Callers at Risk Detailed Table
+                    flattened_callers = []
+                    for d in detailed_list:
+                        for car in d.get("callers_at_risk", []):
+                            flattened_callers.append({
+                                "Target Entity": d.get("entity"),
+                                "Upstream Caller": car.get("qualified_name"),
+                                "File": car.get("file_path"),
+                                "Distance": f"Depth {car.get('distance')}",
+                                "Call Chain": " ➜ ".join(car.get("call_chain", [])),
+                            })
 
-                with tab_breaking:
-                    sym_diffs = d_detail.get("symbol_diffs", [])
-                    breaking_syms = [s for s in sym_diffs if s.get("is_breaking")]
-                    non_breaking_syms = [s for s in sym_diffs if not s.get("is_breaking")]
+                    if flattened_callers:
+                        st.divider()
+                        st.markdown(f"#### Summary: {len(flattened_callers)} Upstream Callers At Risk")
+                        st.dataframe(flattened_callers, use_container_width=True)
+                    else:
+                        st.success("Zero upstream callers at risk. All modified entities are self-contained or entrypoints.")
 
-                    if breaking_syms:
-                        st.markdown(f"#### {len(breaking_syms)} Breaking Changes Detected")
-                        for bs in breaking_syms:
+                with t_details:
+                    st.markdown("#### Detailed Code Entity Impacts & Prescriptive Guidance")
+                    st.caption(active_impact.get("impact_analysis", {}).get("summary", ""))
+
+                    detailed_list = active_impact.get("impact_analysis", {}).get("detailed_impacts", [])
+                    if detailed_list:
+                        for idx, item in enumerate(detailed_list, 1):
                             with st.container():
-                                breaking_card_html = f"""
-                                <div style="background: var(--nb-surface); border: 2px solid #dc2626; border-left: 6px solid #dc2626; padding: 14px 16px; border-radius: 2px; margin-bottom: 12px; box-shadow: var(--nb-shadow);">
-                                  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
-                                    <strong style="color: var(--nb-text); font-size: 1rem; font-family: 'JetBrains Mono', monospace;">[{html.escape(bs.get('kind', '').upper())}] {html.escape(bs.get('qualified_name', ''))}</strong>
-                                    <span style="background: #dc2626; color: #FFFFFF; border: 1.5px solid var(--nb-border); padding: 2px 8px; border-radius: 2px; font-size: 0.75rem; font-weight: 800; font-family: 'JetBrains Mono', monospace;">BREAKING</span>
+                                ent_name = item.get("entity", "")
+                                ent_file = item.get("file", "")
+                                lines = item.get("lines_affected", [0, 0])
+                                ent_type = item.get("entity_type", "function").upper()
+                                c_summary = item.get("change_summary", "")
+                                rem_guide = item.get("remediation_guidance", "")
+                                just = item.get("justification", "")
+                                snippet = item.get("diff_snippet", "")
+                                inbounds = item.get("inbound_callers", [])
+                                outbounds = item.get("outbound_calls", [])
+                                downstream = item.get("downstream_dependent_files", [])
+
+                                entity_card_html = f"""
+                                <div style="background: var(--nb-surface); border: 2px solid var(--nb-border); border-left: 5px solid var(--nb-accent-blue); border-radius: 2px; padding: 16px; margin-bottom: 16px; box-shadow: var(--nb-shadow);">
+                                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
+                                    <div style="font-size: 1.05rem; font-weight: 800; color: var(--nb-text);">
+                                      <span style="background: var(--nb-accent-blue); color: #FFFFFF; border: 1px solid var(--nb-border); padding: 2px 7px; border-radius: 2px; font-size: 0.72rem; text-transform: uppercase; font-family: 'JetBrains Mono', monospace; margin-right: 6px;">{ent_type}</span>
+                                      <code>{html.escape(ent_name)}</code>
+                                    </div>
+                                    <span style="font-size: 0.8rem; color: var(--nb-text-muted); font-family: 'JetBrains Mono', monospace;">{html.escape(ent_file)} : lines {lines[0]}-{lines[1]}</span>
                                   </div>
-                                  <div style="color: var(--nb-text); margin-top: 6px; font-size: 0.9rem;"><strong>Reason:</strong> {html.escape(bs.get('breaking_reason', 'Signature altered incompatibly'))}</div>
-                                  <div style="margin-top: 8px; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; background: var(--nb-code-bg); border: 1px solid var(--nb-border); padding: 8px 10px; border-radius: 2px;">
-                                    <div><span style="color: #dc2626; font-weight: 700;">- Old:</span> {html.escape(bs.get('old_signature') or 'None (Added)')}</div>
-                                    <div><span style="color: #16a34a; font-weight: 700;">+ New:</span> {html.escape(bs.get('new_signature') or 'None (Deleted)')}</div>
+                                  <div style="font-size: 0.9rem; color: var(--nb-text); margin-bottom: 10px;">
+                                    <strong>Summary:</strong> {html.escape(c_summary)}
                                   </div>
-                                  <div style="font-size: 0.75rem; color: var(--nb-text-muted); margin-top: 6px; font-family: 'JetBrains Mono', monospace;">File: {html.escape(bs.get('file_path', ''))}</div>
+                                  <div style="background: {'rgba(245, 158, 11, 0.15)' if is_dark_mode else '#FEF3C7'}; border: 1.5px solid var(--nb-border); border-left: 4px solid #f59e0b; border-radius: 2px; padding: 10px 12px; margin-bottom: 10px; font-size: 0.85rem; color: {'#fef3c7' if is_dark_mode else '#78350F'};">
+                                    <strong>Remediation:</strong> {html.escape(rem_guide)}
+                                  </div>
+                                  <div style="font-size: 0.82rem; color: var(--nb-text-muted); margin-bottom: 8px;">
+                                    <strong>Evidence Justification:</strong> {html.escape(just)}
+                                  </div>
                                 </div>
                                 """
-                                render_html(breaking_card_html)
+                                render_html(entity_card_html)
+
+                                if snippet:
+                                    with st.expander(f"Diff Snippet for `{ent_name}`"):
+                                        st.code(snippet, language="diff")
+
+                                c_sub1, c_sub2, c_sub3 = st.columns(3)
+                                with c_sub1:
+                                    st.caption(f"**Inbound Callers ({len(inbounds)})**")
+                                    if inbounds:
+                                        st.write(", ".join(f"`{c}`" for c in inbounds))
+                                    else:
+                                        st.write("None")
+                                with c_sub2:
+                                    st.caption(f"**Outbound Dependencies ({len(outbounds)})**")
+                                    if outbounds:
+                                        st.write(", ".join(f"`{o}`" for o in outbounds))
+                                    else:
+                                        st.write("None")
+                                with c_sub3:
+                                    st.caption(f"**Downstream Files ({len(downstream)})**")
+                                    if downstream:
+                                        st.write(", ".join(f"`{d}`" for d in downstream))
+                                    else:
+                                        st.write("None")
                     else:
-                        st.success("Zero breaking changes detected between these revisions.")
+                        st.info("No code symbols modified in this changeset.")
 
-                    if non_breaking_syms:
-                        st.markdown(f"#### {len(non_breaking_syms)} Non-Breaking Symbol Modifications")
-                        st.dataframe(non_breaking_syms, use_container_width=True)
+                with t_plan:
+                    st.markdown("#### Prioritized Actionable Remediation Plan")
+                    st.caption("Step-by-step developer checklist synthesized from diff syntax alterations, broken imports, and graph call sites.")
 
-                with tab_files:
-                    st.markdown("#### File-Level Diffs")
-                    f_diffs = d_detail.get("file_diffs", [])
-                    if f_diffs:
-                        for fd in f_diffs:
-                            c_type = fd.get("change_type", "MODIFIED")
-                            path_disp = fd.get("new_path") or fd.get("old_path") or "unknown"
-                            ins = fd.get("insertions", 0)
-                            dels = fd.get("deletions", 0)
+                    rem_plan = active_impact.get("risk_analysis", {}).get("actionable_remediation_plan", [])
+                    if rem_plan:
+                        for step in rem_plan:
+                            s_num = step.get("step_number")
+                            cat = step.get("category", "")
+                            desc = step.get("action_description", "")
+                            targets = step.get("affected_targets", [])
 
-                            badge_config = {
-                                "MODIFIED": {"bg": "#FACC15", "text": "#000000", "label": "MODIFIED"},
-                                "ADDED": {"bg": "#16A34A", "text": "#FFFFFF", "label": "ADDED"},
-                                "DELETED": {"bg": "#DC2626", "text": "#FFFFFF", "label": "DELETED"},
-                                "RENAMED": {"bg": "#2563EB", "text": "#FFFFFF", "label": "RENAMED"},
-                            }.get(c_type, {"bg": "#FACC15", "text": "#000000", "label": c_type})
+                            cat_colors = {
+                                "Contract Changes": "#ef4444" if is_dark_mode else "#dc2626",
+                                "Missing Modules": "#f97316" if is_dark_mode else "#ea580c",
+                                "Direct Callers": "#f59e0b" if is_dark_mode else "#d97706",
+                                "Integration Validation": "#38bdf8" if is_dark_mode else "#2563eb",
+                            }
+                            c_color = cat_colors.get(cat, "#2563eb")
 
-                            file_bar_html = f"""
-                            <div style="background: var(--nb-surface); border: 2px solid var(--nb-border); border-radius: 2px; padding: 10px 14px; margin-top: 10px; margin-bottom: 6px; box-shadow: var(--nb-shadow); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
-                              <div style="display: flex; align-items: center; gap: 10px;">
-                                <span style="background: {badge_config['bg']}; color: {badge_config['text']}; border: 1.5px solid var(--nb-border); border-radius: 2px; font-size: 0.72rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; padding: 2px 8px; text-transform: uppercase;">{badge_config['label']}</span>
-                                <code style="font-size: 0.92rem; font-weight: 700; color: var(--nb-text); background: transparent; border: none; padding: 0;">{path_disp}</code>
+                            step_card_html = f"""
+                            <div style="background: var(--nb-surface); border: 2px solid var(--nb-border); border-left: 5px solid {c_color}; border-radius: 2px; padding: 12px 16px; margin-bottom: 10px; box-shadow: var(--nb-shadow);">
+                              <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
+                                <span style="font-weight: 800; color: var(--nb-text); font-size: 0.95rem; font-family: 'Inter', sans-serif;">Step {s_num}: {html.escape(cat)}</span>
+                                <span style="font-size: 0.72rem; background: var(--nb-surface); color: {c_color}; border: 1.5px solid var(--nb-border); padding: 2px 8px; border-radius: 2px; font-weight: 800; font-family: 'JetBrains Mono', monospace;">{cat.upper()}</span>
                               </div>
-                              <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; font-weight: 700;">
-                                <span style="color: #16a34a;">+{ins}</span> <span style="color: #dc2626;">-{dels}</span>
-                              </div>
+                              <div style="font-size: 0.88rem; color: var(--nb-text); margin-top: 6px;">{html.escape(desc)}</div>
+                              <div style="font-size: 0.75rem; color: var(--nb-text-muted); margin-top: 4px; font-family: 'JetBrains Mono', monospace;">Targets: {', '.join(targets) if targets else 'N/A'}</div>
                             </div>
                             """
-                            render_html(file_bar_html)
-                            with st.expander(f"Diff: {path_disp}", expanded=True):
-                                diff_html = render_colored_diff(fd)
-                                render_html(diff_html)
+                            render_html(step_card_html)
                     else:
-                        st.info("No file diffs recorded.")
+                        st.success("No remedial actions required.")
 
-                with tab_commits:
-                    st.markdown("#### Commits in Changeset")
-                    msgs = d_detail.get("commit_messages", [])
-                    if msgs:
-                        for idx, m in enumerate(msgs, 1):
-                            st.markdown(f"{idx}. `{m}`")
-                    else:
-                        st.info("No commit messages retrieved for this comparison.")
-
-    with tab_impact_engine:
-        st.subheader("Transformation Risk & Behavioral Impact Propagation Engine (F05)")
-        st.caption(
-            "Bridges Git Diff hunks with AST scopes, evaluates multi-hop blast radius across inverted call graphs ($G^T$), "
-            "infers diff syntax deltas (def/return/raise), and synthesizes actionable remediation checklists."
-        )
-
-        # Mode indicator badge
-        if enable_ai and openrouter_key.strip():
-            mode_badge_html = f"""
-            <div style="background: var(--nb-surface); border: 2px solid var(--nb-border); border-radius: 2px; padding: 6px 14px; margin-bottom: 16px; display: inline-flex; align-items: center; gap: 8px; box-shadow: var(--nb-shadow-sm);">
-                <span style="font-size: 0.85rem; font-weight: 700; color: var(--nb-text); font-family: 'Inter', sans-serif;">Mode: AI-Enriched Synthesis</span>
-                <span style="background: #7c3aed; color: #ffffff; border: 1px solid var(--nb-border); padding: 2px 8px; border-radius: 2px; font-size: 0.75rem; font-family: 'JetBrains Mono', monospace; font-weight: 700;">{openrouter_model}</span>
-            </div>
-            """
-        else:
-            mode_badge_html = """
-            <div style="background: var(--nb-surface); border: 2px solid var(--nb-border); border-radius: 2px; padding: 6px 14px; margin-bottom: 16px; display: inline-flex; align-items: center; gap: 8px; box-shadow: var(--nb-shadow-sm);">
-                <span style="font-size: 0.85rem; font-weight: 700; color: var(--nb-text); font-family: 'Inter', sans-serif;">Mode: Deterministic Heuristic Engine</span>
-                <span style="background: #16a34a; color: #ffffff; border: 1px solid var(--nb-border); padding: 2px 8px; border-radius: 2px; font-size: 0.75rem; font-weight: 700; font-family: 'JetBrains Mono', monospace;">100% Offline · Zero Latency</span>
-            </div>
-            """
-        render_html(mode_badge_html)
-
-        col_i1, col_i2, col_i3 = st.columns([2, 2, 1])
-        with col_i1:
-            imp_base = st.text_input("Base Revision (Commit SHA / Branch / Tag)", value="HEAD~1", key="f05_base")
-        with col_i2:
-            imp_target = st.text_input("Target Revision (Commit SHA / Branch / Tag)", value="HEAD", key="f05_target")
-        with col_i3:
-            st.write("")
-            st.write("")
-            run_impact_btn = st.button("Evaluate Impact & Risk", type="primary", use_container_width=True)
-
-        if run_impact_btn:
-            with st.spinner("Executing mathematical interval intersection, transposed BFS blast radius, and delta inference..."):
-                payload = {
-                    "repository_id": selected_repo_id,
-                    "base_ref": imp_base.strip() or "HEAD~1",
-                    "target_ref": imp_target.strip() or "HEAD",
-                    "llm_config": {
-                        "enabled": bool(enable_ai and openrouter_key.strip()),
-                        "api_key": openrouter_key.strip() if enable_ai else None,
-                        "model": openrouter_model if enable_ai else "anthropic/claude-3.5-sonnet",
-                    },
-                }
-                imp_code, imp_res = make_api_request(
-                    f"{api_url}/impact/evaluate",
-                    method="POST",
-                    payload=payload,
-                    timeout=120.0,
-                )
-                if imp_code in (200, 201) and imp_res:
-                    st.session_state["active_impact_data"] = imp_res
-                    st.success("Impact & Risk evaluation completed successfully!")
-                else:
-                    st.error(f"Impact evaluation failed ({imp_code}): {imp_res}")
-
-        active_impact = st.session_state.get("active_impact_data")
-        if active_impact:
-            st.divider()
-
-            meta = active_impact.get("analysis_metadata", {})
-            risk_meta = active_impact.get("risk_analysis", {})
-            risk_lvl = risk_meta.get("risk_level", "LOW")
-
-            is_dark_mode = theme_mode == "Dark"
-            risk_colors = {
-                "CRITICAL": "#ef4444" if is_dark_mode else "#dc2626",
-                "HIGH": "#f97316" if is_dark_mode else "#ea580c",
-                "MEDIUM": "#f59e0b" if is_dark_mode else "#d97706",
-                "LOW": "#22c55e" if is_dark_mode else "#16a34a",
-            }
-            r_col = risk_colors.get(risk_lvl, "#16a34a")
-            border_col = r_col if risk_lvl in ("CRITICAL", "HIGH") else "var(--nb-border)"
-
-            # Risk Summary Header Banner
-            risk_banner_html = f"""
-            <div style="background: var(--nb-surface); border: 2px solid {border_col}; border-left: 8px solid {r_col}; border-radius: 2px; padding: 20px 22px; margin-bottom: 22px; box-shadow: var(--nb-shadow-lg);">
-              <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
-                <div>
-                  <div style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1.5px; color: var(--nb-text-muted); font-weight: 800; font-family: 'Inter', sans-serif;">ARCHITECTURAL RISK ASSESSMENT</div>
-                  <h2 style="margin: 4px 0 0 0; color: {r_col}; font-size: 2rem; font-weight: 800; letter-spacing: 0.5px; font-family: 'Inter', sans-serif;">{risk_lvl} RISK</h2>
-                  <div style="font-size: 0.85rem; color: var(--nb-text-muted); margin-top: 6px; font-family: 'JetBrains Mono', monospace;">
-                    Comparing <code>{meta.get('base_commit', '')[:7]}</code> ➜ <code>{meta.get('current_commit', '')[:7]}</code>
-                    &bull; Reasoning Mode: <strong>{meta.get('reasoning_mode', 'HEURISTIC')}</strong>
-                  </div>
-                </div>
-                <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-                  <div style="background: var(--nb-surface); border: 2px solid var(--nb-border); border-radius: 2px; padding: 8px 16px; text-align: center; box-shadow: var(--nb-shadow-sm);">
-                    <div style="font-size: 1.5rem; font-weight: 800; color: {r_col}; font-family: 'JetBrains Mono', monospace;">{meta.get('total_callers_at_risk', 0)}</div>
-                    <div style="font-size: 0.72rem; text-transform: uppercase; color: var(--nb-text-muted); font-weight: 700;">Callers At Risk</div>
-                  </div>
-                  <div style="background: var(--nb-surface); border: 2px solid var(--nb-border); border-radius: 2px; padding: 8px 16px; text-align: center; box-shadow: var(--nb-shadow-sm);">
-                    <div style="font-size: 1.5rem; font-weight: 800; color: var(--nb-accent-blue); font-family: 'JetBrains Mono', monospace;">{meta.get('total_impacted_downstream_files', 0)}</div>
-                    <div style="font-size: 0.72rem; text-transform: uppercase; color: var(--nb-text-muted); font-weight: 700;">Downstream Files</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            """
-            render_html(risk_banner_html)
-
-            # Metric Cards
-            m_col1, m_col2, m_col3, m_col4 = st.columns(4)
-            m_col1.metric("Changed Entities", meta.get("total_changed_entities", 0))
-            m_col2.metric("Deleted Files", meta.get("total_deleted_files", 0))
-            m_col3.metric("Impacted Downstream Files", meta.get("total_impacted_downstream_files", 0))
-            m_col4.metric("Upstream Callers At Risk", meta.get("total_callers_at_risk", 0))
-
-            # AI Remediation Directive (Where & What to Change)
-            ai_dir = active_impact.get("risk_analysis", {}).get("ai_directive") or active_impact.get("ai_directive")
-            if ai_dir:
-                where_items = "".join(f"<li><code>{loc}</code></li>" for loc in ai_dir.get("where_to_change", [])) or "<li>All direct callers identified below</li>"
-                what_items = "".join(f"<li>{act}</li>" for act in ai_dir.get("what_to_change", [])) or "<li>Verify and test call sites</li>"
-                ai_dir_html = f"""
-                <div style="background: var(--nb-surface); border: 2px solid var(--nb-border); border-top: 6px solid #7c3aed; border-radius: 2px; padding: 18px 20px; margin-top: 14px; margin-bottom: 20px; box-shadow: var(--nb-shadow-lg);">
-                  <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-                    <span style="font-size: 1.05rem; font-weight: 800; color: var(--nb-text); font-family: 'Inter', sans-serif;">AI Remediation Directive: Where & What to Change</span>
-                  </div>
-                  <div style="font-size: 0.92rem; color: var(--nb-text); margin-bottom: 14px; font-weight: 500;">
-                    {html.escape(ai_dir.get("executive_summary", ""))}
-                  </div>
-                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                    <div style="background: var(--nb-code-bg); border: 1.5px solid var(--nb-border); border-radius: 2px; padding: 12px 14px; box-shadow: var(--nb-shadow-sm);">
-                      <strong style="color: var(--nb-text); font-size: 0.82rem; text-transform: uppercase; font-family: 'Inter', sans-serif; letter-spacing: 0.5px;">Where to Change:</strong>
-                      <ul style="margin: 6px 0 0 0; padding-left: 20px; font-size: 0.85rem; color: var(--nb-text);">
-                        {where_items}
-                      </ul>
-                    </div>
-                    <div style="background: var(--nb-code-bg); border: 1.5px solid var(--nb-border); border-radius: 2px; padding: 12px 14px; box-shadow: var(--nb-shadow-sm);">
-                      <strong style="color: var(--nb-text); font-size: 0.82rem; text-transform: uppercase; font-family: 'Inter', sans-serif; letter-spacing: 0.5px;">What to Change:</strong>
-                      <ul style="margin: 6px 0 0 0; padding-left: 20px; font-size: 0.85rem; color: var(--nb-text);">
-                        {what_items}
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-                """
-                render_html(ai_dir_html)
-
-            # Subtabs for F05
-            t_graph, t_details, t_plan, t_json = st.tabs([
-                "Call Graph",
-                "Detailed Impacts",
-                "Remediation Plan",
-                "JSON Payload",
-            ])
-
-            with t_graph:
-                st.markdown("#### Behavioral Impact Propagation Tree (G^T)")
-                st.caption("Visualizes altered code entities and their direct/multi-hop upstream callers traced via transposed BFS traversal.")
-
-                impact_data = active_impact.get("impact_analysis", {})
-                detailed_list = impact_data.get("detailed_impacts", [])
-
-                if detailed_list:
-                    for d in detailed_list:
-                        ent = d.get("entity", "entity")
-                        f_path = d.get("file", "")
-                        lines = d.get("lines_affected", [0, 0])
-                        callers = d.get("callers_at_risk", [])
-                        downstream = d.get("downstream_dependent_files", [])
-                        num_callers = len(callers)
-                        ent_type = d.get("entity_type", "function").upper()
-
-                        badge_label = f"{num_callers} Callers At Risk" if num_callers > 0 else "Isolated (0 Callers)"
-
-                        with st.expander(f"{f_path}::{ent} (lines {lines[0]}-{lines[1]}) [{ent_type}] — {badge_label}", expanded=True):
-                            if callers:
-                                st.markdown(f"**Impacts {len(callers)} Upstream Callers:**")
-                                for c in callers:
-                                    dist = c.get("distance", 1)
-                                    c_name = c.get("qualified_name", "")
-                                    c_file = c.get("file_path", "")
-                                    c_chain = c.get("call_chain", [])
-
-                                    dist_badge = "Direct Caller (Depth 1)" if dist == 1 else f"Transitive Caller (Depth {dist})"
-                                    chain_str = " ➜ ".join(c_chain) if c_chain else f"{c_name} ➜ {ent}"
-
-                                    caller_card_html = f"""
-                                    <div style="background: var(--nb-surface); border: 1.5px solid var(--nb-border); border-left: 4px solid #f59e0b; padding: 10px 14px; border-radius: 2px; margin-bottom: 8px; box-shadow: var(--nb-shadow-sm);">
-                                      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
-                                        <span style="font-weight: 700; color: var(--nb-text); font-size: 0.9rem;">↳ impacts: <code>{html.escape(c_file)}::{html.escape(c_name)}</code></span>
-                                        <span style="font-size: 0.72rem; background: var(--nb-surface); border: 1px solid var(--nb-border); color: {'#dc2626' if dist == 1 else '#d97706'}; padding: 2px 8px; border-radius: 2px; font-weight: 800; font-family: 'JetBrains Mono', monospace;">{dist_badge}</span>
-                                      </div>
-                                      <div style="font-size: 0.8rem; color: var(--nb-text-muted); margin-top: 4px; font-family: 'JetBrains Mono', monospace;">
-                                        Call Chain: <span style="color: var(--nb-text); font-weight: 600;">{html.escape(chain_str)}</span>
-                                      </div>
-                                    </div>
-                                    """
-                                    render_html(caller_card_html)
-                            else:
-                                render_html("<div style='color: #16a34a; font-size: 0.88rem; padding: 6px 0; font-weight: 700; font-family: \"JetBrains Mono\", Consolas, monospace;'>↳ No upstream callers invoke this modified entity directly or transitively.</div>")
-
-                            # Downstream non-code files
-                            other_downstream = [f for f in downstream if f != f_path]
-                            if other_downstream:
-                                st.caption("**Referenced in Non-Code Files:**")
-                                st.write(", ".join(f"`{f}`" for f in other_downstream))
-                else:
-                    st.info("No code symbols modified in this changeset.")
-
-                # Render graphical flowchart in an expander if available
-                dep_graph = active_impact.get("dependency_graph", {})
-                mermaid_code = dep_graph.get("mermaid", "")
-                if mermaid_code:
-                    with st.expander("View Graphical Call Graph Flowchart (Mermaid)", expanded=False):
-                        mermaid_html = f"""
-                        <!DOCTYPE html>
-                        <html>
-                        <head>
-                          <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-                          <script>mermaid.initialize({{startOnLoad: true, theme: '{'dark' if is_dark_mode else 'default'}'}});</script>
-                        </head>
-                        <body style="background: transparent; margin: 0; padding: 10px; color: {'#f8fafc' if is_dark_mode else '#09090b'};">
-                          <div class="mermaid">
-                            {mermaid_code}
-                          </div>
-                        </body>
-                        </html>
-                        """
-                        if components is not None:
-                            components.html(mermaid_html, height=350, scrolling=True)
-                        else:
-                            st.code(mermaid_code, language="mermaid")
-
-                # Callers at Risk Detailed Table
-                flattened_callers = []
-                for d in detailed_list:
-                    for car in d.get("callers_at_risk", []):
-                        flattened_callers.append({
-                            "Target Entity": d.get("entity"),
-                            "Upstream Caller": car.get("qualified_name"),
-                            "File": car.get("file_path"),
-                            "Distance": f"Depth {car.get('distance')}",
-                            "Call Chain": " ➜ ".join(car.get("call_chain", [])),
-                        })
-
-                if flattened_callers:
                     st.divider()
-                    st.markdown(f"#### Summary: {len(flattened_callers)} Upstream Callers At Risk")
-                    st.dataframe(flattened_callers, use_container_width=True)
-                else:
-                    st.success("Zero upstream callers at risk. All modified entities are self-contained or entrypoints.")
+                    st.markdown("#### CI/CD Recommendations")
+                    ci_recs = active_impact.get("risk_analysis", {}).get("ci_cd_recommendations", [])
+                    for rec in ci_recs:
+                        st.markdown(f"- {rec}")
 
-            with t_details:
-                st.markdown("#### Detailed Code Entity Impacts & Prescriptive Guidance")
-                st.caption(active_impact.get("impact_analysis", {}).get("summary", ""))
+                    st.divider()
+                    st.markdown("#### Key Risk Factors")
+                    factors = active_impact.get("risk_analysis", {}).get("key_risk_factors", [])
+                    if factors:
+                        st.dataframe(factors, use_container_width=True)
 
-                detailed_list = active_impact.get("impact_analysis", {}).get("detailed_impacts", [])
-                if detailed_list:
-                    for idx, item in enumerate(detailed_list, 1):
-                        with st.container():
-                            ent_name = item.get("entity", "")
-                            ent_file = item.get("file", "")
-                            lines = item.get("lines_affected", [0, 0])
-                            ent_type = item.get("entity_type", "function").upper()
-                            c_summary = item.get("change_summary", "")
-                            rem_guide = item.get("remediation_guidance", "")
-                            just = item.get("justification", "")
-                            snippet = item.get("diff_snippet", "")
-                            inbounds = item.get("inbound_callers", [])
-                            outbounds = item.get("outbound_calls", [])
-                            downstream = item.get("downstream_dependent_files", [])
+                with t_json:
+                    col_dl, _ = st.columns([1, 3])
+                    with col_dl:
+                        st.download_button(
+                            label="Download Full Impact JSON",
+                            data=json.dumps(active_impact, indent=2),
+                            file_name=f"trace_impact_analysis_{meta.get('analysis_id', 'run')[:8]}.json",
+                            mime="application/json",
+                            use_container_width=True,
+                        )
+                    st.json(active_impact)
 
-                            entity_card_html = f"""
-                            <div style="background: var(--nb-surface); border: 2px solid var(--nb-border); border-left: 5px solid var(--nb-accent-blue); border-radius: 2px; padding: 16px; margin-bottom: 16px; box-shadow: var(--nb-shadow);">
-                              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
-                                <div style="font-size: 1.05rem; font-weight: 800; color: var(--nb-text);">
-                                  <span style="background: var(--nb-accent-blue); color: #FFFFFF; border: 1px solid var(--nb-border); padding: 2px 7px; border-radius: 2px; font-size: 0.72rem; text-transform: uppercase; font-family: 'JetBrains Mono', monospace; margin-right: 6px;">{ent_type}</span>
-                                  <code>{html.escape(ent_name)}</code>
-                                </div>
-                                <span style="font-size: 0.8rem; color: var(--nb-text-muted); font-family: 'JetBrains Mono', monospace;">{html.escape(ent_file)} : lines {lines[0]}-{lines[1]}</span>
-                              </div>
-                              <div style="font-size: 0.9rem; color: var(--nb-text); margin-bottom: 10px;">
-                                <strong>Summary:</strong> {html.escape(c_summary)}
-                              </div>
-                              <div style="background: {'rgba(245, 158, 11, 0.15)' if is_dark_mode else '#FEF3C7'}; border: 1.5px solid var(--nb-border); border-left: 4px solid #f59e0b; border-radius: 2px; padding: 10px 12px; margin-bottom: 10px; font-size: 0.85rem; color: {'#fef3c7' if is_dark_mode else '#78350F'};">
-                                <strong>Remediation:</strong> {html.escape(rem_guide)}
-                              </div>
-                              <div style="font-size: 0.82rem; color: var(--nb-text-muted); margin-bottom: 8px;">
-                                <strong>Evidence Justification:</strong> {html.escape(just)}
-                              </div>
-                            </div>
-                            """
-                            render_html(entity_card_html)
+        with tab_upgrade_planner:
+            with st.container(border=True):
+                st.markdown(
+                    """
+                    <div style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1.2px; font-weight: 800; color: var(--nb-text-muted); margin-bottom: 2px;">
+                      Upgrade Planner & Orchestration Control
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+                st.subheader("F07: Actionable Upgrade Planner & Dependency Orchestration")
+                st.caption("Transforms impact analysis and risk assessments into an actionable, dependency-ordered engineering upgrade plan.")
 
-                            if snippet:
-                                with st.expander(f"Diff Snippet for `{ent_name}`"):
-                                    st.code(snippet, language="diff")
+                # Historical Plans for Repository
+                hist_code, hist_res = make_api_request(f"{api_url}/repositories/{selected_repo_id}/upgrade-plans")
+                existing_plans: list[dict[str, Any]] = hist_res.get("items", []) if (hist_code == 200 and hist_res) else []
 
-                            c_sub1, c_sub2, c_sub3 = st.columns(3)
-                            with c_sub1:
-                                st.caption(f"**Inbound Callers ({len(inbounds)})**")
-                                if inbounds:
-                                    st.write(", ".join(f"`{c}`" for c in inbounds))
-                                else:
-                                    st.write("None")
-                            with c_sub2:
-                                st.caption(f"**Outbound Dependencies ({len(outbounds)})**")
-                                if outbounds:
-                                    st.write(", ".join(f"`{o}`" for o in outbounds))
-                                else:
-                                    st.write("None")
-                            with c_sub3:
-                                st.caption(f"**Downstream Files ({len(downstream)})**")
-                                if downstream:
-                                    st.write(", ".join(f"`{d}`" for d in downstream))
-                                else:
-                                    st.write("None")
-                else:
-                    st.info("No code symbols modified in this changeset.")
+                col_p1, col_p2 = st.columns([2, 1])
+                with col_p1:
+                    st.markdown("##### Plan Generation & Selection")
+                with col_p2:
+                    if existing_plans:
+                        plan_options = {f"{p['title']} ({p['status']} - {p['progress_percentage']}%)": p["id"] for p in existing_plans}
+                        selected_plan_label = st.selectbox("Load Existing Plan", options=["-- New Plan --"] + list(plan_options.keys()))
+                        if selected_plan_label != "-- New Plan --":
+                            st.session_state["active_plan_id"] = plan_options[selected_plan_label]
 
-            with t_plan:
-                st.markdown("#### Prioritized Actionable Remediation Plan")
-                st.caption("Step-by-step developer checklist synthesized from diff syntax alterations, broken imports, and graph call sites.")
+                # Generator form
+                with st.expander("Generate New Upgrade Plan", expanded=("active_plan_id" not in st.session_state)):
+                    c_g1, c_g2, c_g3 = st.columns([2, 2, 2])
+                    with c_g1:
+                        p_base = st.text_input("Base Revision", value="HEAD~1", key="f07_base")
+                    with c_g2:
+                        p_target = st.text_input("Target Revision", value="HEAD", key="f07_target")
+                    with c_g3:
+                        p_title = st.text_input("Plan Title (Optional)", value=f"Upgrade Plan: {p_base} ➜ {p_target}", key="f07_title")
 
-                rem_plan = active_impact.get("risk_analysis", {}).get("actionable_remediation_plan", [])
-                if rem_plan:
-                    for step in rem_plan:
-                        s_num = step.get("step_number")
-                        cat = step.get("category", "")
-                        desc = step.get("action_description", "")
-                        targets = step.get("affected_targets", [])
+                    # Check if active impact analysis from F05 exists
+                    active_impact_data = st.session_state.get("active_impact_data")
+                    use_active_impact = False
+                    active_impact_id = None
+                    if active_impact_data:
+                        active_impact_id = active_impact_data.get("analysis_metadata", {}).get("analysis_id")
+                        if active_impact_id:
+                            use_active_impact = st.checkbox(
+                                f"Link to Active Impact Analysis (`{str(active_impact_id)[:8]}...`)",
+                                value=True,
+                                help="Reuse already computed AST diffs, callers at risk, and blast radius from F05.",
+                            )
 
-                        cat_colors = {
-                            "Contract Changes": "#ef4444" if is_dark_mode else "#dc2626",
-                            "Missing Modules": "#f97316" if is_dark_mode else "#ea580c",
-                            "Direct Callers": "#f59e0b" if is_dark_mode else "#d97706",
-                            "Integration Validation": "#38bdf8" if is_dark_mode else "#2563eb",
-                        }
-                        c_color = cat_colors.get(cat, "#2563eb")
+                    gen_btn = st.button("Generate Upgrade Plan", type="primary", use_container_width=True)
 
-                        step_card_html = f"""
-                        <div style="background: var(--nb-surface); border: 2px solid var(--nb-border); border-left: 5px solid {c_color}; border-radius: 2px; padding: 12px 16px; margin-bottom: 10px; box-shadow: var(--nb-shadow);">
-                          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
-                            <span style="font-weight: 800; color: var(--nb-text); font-size: 0.95rem; font-family: 'Inter', sans-serif;">Step {s_num}: {html.escape(cat)}</span>
-                            <span style="font-size: 0.72rem; background: var(--nb-surface); color: {c_color}; border: 1.5px solid var(--nb-border); padding: 2px 8px; border-radius: 2px; font-weight: 800; font-family: 'JetBrains Mono', monospace;">{cat.upper()}</span>
+                    if gen_btn:
+                        with st.spinner("Sequencing task dependency DAG, running Tarjan SCC cycle detection, and classifying architectural tiers..."):
+                            gen_payload = {
+                                "repository_id": selected_repo_id,
+                                "impact_analysis_id": active_impact_id if use_active_impact else None,
+                                "base_ref": p_base.strip() or "HEAD~1",
+                                "target_ref": p_target.strip() or "HEAD",
+                                "title": p_title.strip() or None,
+                                "llm_config": {
+                                    "enabled": bool(enable_ai and openrouter_key.strip()),
+                                    "api_key": openrouter_key.strip() if enable_ai else None,
+                                    "model": openrouter_model if enable_ai else "mistralai/mistral-7b-instruct:free",
+                                },
+                            }
+                            g_code, g_res = make_api_request(
+                                f"{api_url}/upgrade-plans/generate",
+                                method="POST",
+                                payload=gen_payload,
+                                timeout=120.0,
+                            )
+                            if g_code in (200, 201) and g_res:
+                                st.session_state["active_plan_id"] = g_res["id"]
+                                st.success(f"Upgrade Plan generated successfully! Plan ID: `{g_res['id']}`")
+                                st.rerun()
+                            else:
+                                st.error(f"Plan generation failed ({g_code}): {g_res}")
+
+            # Active Plan Inspector & Task Lifecycle
+            curr_plan_id = st.session_state.get("active_plan_id")
+            if curr_plan_id:
+                plan_code, plan_data = make_api_request(f"{api_url}/upgrade-plans/{curr_plan_id}")
+                if plan_code == 200 and plan_data:
+                    st.divider()
+
+                    p_status = plan_data.get("status", "DRAFT")
+                    p_risk = plan_data.get("risk_level", "LOW")
+                    metrics = plan_data.get("summary_metrics", {})
+                    pct = metrics.get("progress_percentage", 0.0)
+
+                    p_significance = plan_data.get("change_significance", "MODERATE_CHANGE")
+                    p_reasoning = plan_data.get("significance_reasoning", "")
+                    p_recommended_action = plan_data.get("recommended_action", "")
+                    p_order_rationale = plan_data.get("order_rationale", "")
+                    p_suggestions = plan_data.get("optional_suggestions", [])
+
+                    sig_palette = {
+                        "MAJOR_CHANGE": {"border": "#ef4444", "bg": "#ef444420", "text": "#dc2626", "label": "Major Change"},
+                        "MODERATE_CHANGE": {"border": "#f59e0b", "bg": "#f59e0b20", "text": "#d97706", "label": "Moderate Change"},
+                        "MINOR_CHANGE": {"border": "#2563eb", "bg": "#2563eb20", "text": "#2563eb", "label": "Minor Change"},
+                        "NO_ACTION_REQUIRED": {"border": "#64748b", "bg": "#64748b20", "text": "#475569", "label": "No Action Required"},
+                    }
+                    sig_meta = sig_palette.get(p_significance, sig_palette["MODERATE_CHANGE"])
+
+                    risk_colors = {
+                        "CRITICAL": "#ef4444",
+                        "HIGH": "#ea580c",
+                        "MEDIUM": "#d97706",
+                        "LOW": "#16a34a",
+                    }
+                    r_color = risk_colors.get(p_risk, "#2563eb")
+
+                    status_colors = {
+                        "COMPLETED": "#16a34a",
+                        "IN_PROGRESS": "#2563eb",
+                        "DRAFT": "#64748b",
+                        "CANCELLED": "#71717a",
+                    }
+                    s_color = status_colors.get(p_status, "#64748b")
+
+                    # 1. UPGRADE ASSESSMENT CARD
+                    render_html(f"""
+                    <div style="background: var(--card-bg); border: 2px solid var(--border-color); border-left: 6px solid {sig_meta['border']}; box-shadow: 3px 3px 0px var(--shadow-color); padding: 18px 20px; margin-bottom: 20px; border-radius: 0px;">
+                      <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px;">
+                        <div>
+                          <div style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text-secondary); font-weight: 700;">Upgrade Assessment</div>
+                          <h3 style="margin: 4px 0 6px 0; color: var(--text-primary); font-size: 1.4rem; font-weight: 800; font-family: 'JetBrains Mono', Consolas, monospace;">{plan_data.get('title', 'Upgrade Plan')}</h3>
+                          <div style="font-size: 0.82rem; color: var(--text-secondary); font-family: 'JetBrains Mono', Consolas, monospace;">
+                            Revisions: <span style="background: var(--bg-canvas); border: 1px solid var(--border-color); padding: 2px 6px; font-weight: 700; color: var(--text-primary);">{plan_data.get('base_commit', '')[:7]}</span> ➔ <span style="background: var(--bg-canvas); border: 1px solid var(--border-color); padding: 2px 6px; font-weight: 700; color: var(--text-primary);">{plan_data.get('target_commit', '')[:7]}</span>
+                            &bull; Mode: <strong style="color: var(--text-primary);">{plan_data.get('reasoning_mode', 'HEURISTIC')}</strong>
                           </div>
-                          <div style="font-size: 0.88rem; color: var(--nb-text); margin-top: 6px;">{html.escape(desc)}</div>
-                          <div style="font-size: 0.75rem; color: var(--nb-text-muted); margin-top: 4px; font-family: 'JetBrains Mono', monospace;">Targets: {', '.join(targets) if targets else 'N/A'}</div>
                         </div>
-                        """
-                        render_html(step_card_html)
-                else:
-                    st.success("No remedial actions required.")
+                        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                          <div style="background: {sig_meta['bg']}; border: 2px solid {sig_meta['border']}; box-shadow: 2px 2px 0px var(--shadow-color); padding: 6px 12px; text-align: center; border-radius: 0px;">
+                            <div style="font-size: 0.85rem; font-weight: 800; color: {sig_meta['text']}; font-family: 'JetBrains Mono', Consolas, monospace;">{sig_meta['label']}</div>
+                            <div style="font-size: 0.62rem; text-transform: uppercase; color: var(--text-secondary); font-weight: 700; letter-spacing: 0.5px;">Significance</div>
+                          </div>
+                          <div style="background: {r_color}18; border: 2px solid {r_color}; box-shadow: 2px 2px 0px var(--shadow-color); padding: 6px 12px; text-align: center; border-radius: 0px;">
+                            <div style="font-size: 0.85rem; font-weight: 800; color: {r_color}; font-family: 'JetBrains Mono', Consolas, monospace;">{p_risk}</div>
+                            <div style="font-size: 0.62rem; text-transform: uppercase; color: var(--text-secondary); font-weight: 700; letter-spacing: 0.5px;">Risk Rating</div>
+                          </div>
+                          <div style="background: {s_color}18; border: 2px solid {s_color}; box-shadow: 2px 2px 0px var(--shadow-color); padding: 6px 12px; text-align: center; border-radius: 0px;">
+                            <div style="font-size: 0.85rem; font-weight: 800; color: {s_color}; font-family: 'JetBrains Mono', Consolas, monospace;">{p_status}</div>
+                            <div style="font-size: 0.62rem; text-transform: uppercase; color: var(--text-secondary); font-weight: 700; letter-spacing: 0.5px;">Status</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    """)
 
-                st.divider()
-                st.markdown("#### CI/CD Recommendations")
-                ci_recs = active_impact.get("risk_analysis", {}).get("ci_cd_recommendations", [])
-                for rec in ci_recs:
-                    st.markdown(f"- {rec}")
-
-                st.divider()
-                st.markdown("#### Key Risk Factors")
-                factors = active_impact.get("risk_analysis", {}).get("key_risk_factors", [])
-                if factors:
-                    st.dataframe(factors, use_container_width=True)
-
-            with t_json:
-                col_dl, _ = st.columns([1, 3])
-                with col_dl:
-                    st.download_button(
-                        label="Download Full Impact JSON",
-                        data=json.dumps(active_impact, indent=2),
-                        file_name=f"trace_impact_analysis_{meta.get('analysis_id', 'run')[:8]}.json",
-                        mime="application/json",
-                        use_container_width=True,
-                    )
-                st.json(active_impact)
-
-    with tab_upgrade_planner:
-        with st.container(border=True):
-            st.markdown(
-                """
-                <div style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1.2px; font-weight: 800; color: var(--nb-text-muted); margin-bottom: 2px;">
-                  Upgrade Planner & Orchestration Control
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-            st.subheader("F07: Actionable Upgrade Planner & Dependency Orchestration")
-            st.caption("Transforms impact analysis and risk assessments into an actionable, dependency-ordered engineering upgrade plan.")
-
-            # Historical Plans for Repository
-            hist_code, hist_res = make_api_request(f"{api_url}/repositories/{selected_repo_id}/upgrade-plans")
-            existing_plans: list[dict[str, Any]] = hist_res.get("items", []) if (hist_code == 200 and hist_res) else []
-
-            col_p1, col_p2 = st.columns([2, 1])
-            with col_p1:
-                st.markdown("##### Plan Generation & Selection")
-            with col_p2:
-                if existing_plans:
-                    plan_options = {f"{p['title']} ({p['status']} - {p['progress_percentage']}%)": p["id"] for p in existing_plans}
-                    selected_plan_label = st.selectbox("Load Existing Plan", options=["-- New Plan --"] + list(plan_options.keys()))
-                    if selected_plan_label != "-- New Plan --":
-                        st.session_state["active_plan_id"] = plan_options[selected_plan_label]
-
-            # Generator form
-            with st.expander("Generate New Upgrade Plan", expanded=("active_plan_id" not in st.session_state)):
-                c_g1, c_g2, c_g3 = st.columns([2, 2, 2])
-                with c_g1:
-                    p_base = st.text_input("Base Revision", value="HEAD~1", key="f07_base")
-                with c_g2:
-                    p_target = st.text_input("Target Revision", value="HEAD", key="f07_target")
-                with c_g3:
-                    p_title = st.text_input("Plan Title (Optional)", value=f"Upgrade Plan: {p_base} ➜ {p_target}", key="f07_title")
-
-                # Check if active impact analysis from F05 exists
-                active_impact_data = st.session_state.get("active_impact_data")
-                use_active_impact = False
-                active_impact_id = None
-                if active_impact_data:
-                    active_impact_id = active_impact_data.get("analysis_metadata", {}).get("analysis_id")
-                    if active_impact_id:
-                        use_active_impact = st.checkbox(
-                            f"Link to Active Impact Analysis (`{str(active_impact_id)[:8]}...`)",
-                            value=True,
-                            help="Reuse already computed AST diffs, callers at risk, and blast radius from F05.",
+                    # Recommended Action Banner
+                    if p_significance in ("MINOR_CHANGE", "NO_ACTION_REQUIRED"):
+                        st.info(
+                            f"**Recommended Action:** {p_recommended_action or 'No major upgrade work required. The revision contains documentation-only changes with no executable behavior or API contract changes.'}"
+                        )
+                    else:
+                        st.success(
+                            f"**Recommended Action:** {p_recommended_action or 'A coordinated upgrade is recommended.'}"
                         )
 
-                gen_btn = st.button("Generate Upgrade Plan", type="primary", use_container_width=True)
+                    if p_reasoning:
+                        st.markdown(f"**Architectural Reasoning:** {p_reasoning}")
 
-                if gen_btn:
-                    with st.spinner("Sequencing task dependency DAG, running Tarjan SCC cycle detection, and classifying architectural tiers..."):
-                        gen_payload = {
-                            "repository_id": selected_repo_id,
-                            "impact_analysis_id": active_impact_id if use_active_impact else None,
-                            "base_ref": p_base.strip() or "HEAD~1",
-                            "target_ref": p_target.strip() or "HEAD",
-                            "title": p_title.strip() or None,
-                            "llm_config": {
-                                "enabled": bool(enable_ai and openrouter_key.strip()),
-                                "api_key": openrouter_key.strip() if enable_ai else None,
-                                "model": openrouter_model if enable_ai else "mistralai/mistral-7b-instruct:free",
+                    if p_order_rationale:
+                        with st.expander("Why this order?", expanded=True):
+                            st.markdown(p_order_rationale)
+
+                    # AI Plan Review (if available)
+                    ai_review = plan_data.get("ai_plan_review")
+                    if ai_review:
+                        with st.expander("Senior Architect Review", expanded=False):
+                            valid_seq = ai_review.get("sequence_valid", True)
+                            conf = ai_review.get("confidence", "HIGH")
+                            st.markdown(
+                                f"**Topological Sequence:** {'Valid' if valid_seq else 'Review Sequence'} &bull; "
+                                f"**Confidence:** `{conf}`"
+                            )
+                            for w in ai_review.get("warnings", []):
+                                st.warning(f"Advisory: {w}")
+                            for ms in ai_review.get("missing_task_suggestions", []):
+                                st.info(
+                                    f"Suggested Component to Review: `{ms.get('component')}` — "
+                                    f"{ms.get('reason')} (Confidence: {ms.get('confidence', 'N/A')})"
+                                )
+                            for ut in ai_review.get("unnecessary_tasks", []):
+                                st.caption(f"Potential Non-Critical Item: `{ut.get('component')}` — {ut.get('reason')}")
+
+                    # Progress & Metrics (only if tasks exist)
+                    all_tasks: list[dict[str, Any]] = plan_data.get("tasks", [])
+                    if all_tasks:
+                        st.progress(float(pct) / 100.0)
+                        st.caption(f"**Overall Progress: {pct}%** ({metrics.get('completed_tasks', 0)} of {metrics.get('total_tasks', 0)} tasks resolved)")
+
+                        m_c1, m_c2, m_c3, m_c4, m_c5, m_c6 = st.columns(6)
+                        m_c1.metric("Total Tasks", metrics.get("total_tasks", 0))
+                        m_c2.metric("Completed", metrics.get("completed_tasks", 0))
+                        m_c3.metric("In Progress", metrics.get("in_progress_tasks", 0))
+                        m_c4.metric("Pending", metrics.get("pending_tasks", 0))
+                        m_c5.metric("Blocked", metrics.get("blocked_tasks", 0))
+                        m_c6.metric("Skipped", metrics.get("skipped_tasks", 0))
+
+                        st.divider()
+
+                        # Filter Toolbar
+                        t_col1, t_col2, t_col3, t_col4 = st.columns([1.5, 1.5, 2, 1.5])
+                        with t_col1:
+                            filter_status = st.selectbox(
+                                "Status",
+                                options=["ALL", "PENDING", "IN_PROGRESS", "COMPLETED", "BLOCKED", "SKIPPED"],
+                                index=0,
+                                key="f07_filter_status",
+                            )
+                        with t_col2:
+                            filter_risk = st.selectbox(
+                                "Risk",
+                                options=["ALL", "LOW", "MEDIUM", "HIGH", "CRITICAL"],
+                                index=0,
+                                key="f07_filter_risk",
+                            )
+                        with t_col3:
+                            filter_category = st.selectbox(
+                                "Architectural Tier",
+                                options=[
+                                    "ALL",
+                                    "CONTRACT_API",
+                                    "CORE_LOGIC",
+                                    "DATA_MAPPING",
+                                    "CONSUMER_HANDLER",
+                                    "CLIENT_UI",
+                                    "INTEGRATION_TEST",
+                                    "DOCUMENTATION_CONFIG",
+                                ],
+                                index=0,
+                                key="f07_filter_cat",
+                            )
+                        with t_col4:
+                            st.write("")
+                            st.download_button(
+                                label="Download Plan JSON",
+                                data=json.dumps(plan_data, indent=2),
+                                file_name=f"upgrade_plan_{curr_plan_id[:8]}.json",
+                                mime="application/json",
+                                use_container_width=True,
+                            )
+
+                        # Filter Tasks
+                        filtered_tasks = all_tasks
+                        if filter_status != "ALL":
+                            filtered_tasks = [t for t in filtered_tasks if t.get("status") == filter_status]
+                        if filter_risk != "ALL":
+                            filtered_tasks = [t for t in filtered_tasks if t.get("risk_level") == filter_risk]
+                        if filter_category != "ALL":
+                            filtered_tasks = [t for t in filtered_tasks if t.get("category") == filter_category]
+
+                        st.markdown(f"#### Ordered Upgrade Tasks ({len(filtered_tasks)} of {len(all_tasks)})")
+
+                        tier_details = {
+                            "CONTRACT_API": {
+                                "border": "#ef4444", "bg": "#ef444418", "text": "#dc2626",
+                                "name": "Tier 1 · API / Contract",
+                                "desc": "Public APIs, interfaces, schemas, request/response contracts",
+                            },
+                            "CORE_LOGIC": {
+                                "border": "#8b5cf6", "bg": "#8b5cf618", "text": "#7c3aed",
+                                "name": "Tier 2 · Core Logic",
+                                "desc": "Business rules, services, domain/application logic",
+                            },
+                            "DATA_MAPPING": {
+                                "border": "#2563eb", "bg": "#2563eb18", "text": "#2563eb",
+                                "name": "Tier 3 · Data / Mapping",
+                                "desc": "Database models, repositories, ORM mappings, serialization/data transformations",
+                            },
+                            "CONSUMER_HANDLER": {
+                                "border": "#f59e0b", "bg": "#f59e0b18", "text": "#d97706",
+                                "name": "Tier 4 · Handlers / Consumers",
+                                "desc": "Event handlers, webhooks, message consumers, adapters",
+                            },
+                            "CLIENT_UI": {
+                                "border": "#ec4899", "bg": "#ec489918", "text": "#db2777",
+                                "name": "Tier 5 · Client / UI",
+                                "desc": "Frontend, UI components, templates, client-facing behavior",
+                            },
+                            "INTEGRATION_TEST": {
+                                "border": "#10b981", "bg": "#10b98118", "text": "#059669",
+                                "name": "Tier 6 · Tests / Integration",
+                                "desc": "Unit, integration, end-to-end and regression tests",
+                            },
+                            "DOCUMENTATION_CONFIG": {
+                                "border": "#64748b", "bg": "#64748b18", "text": "#475569",
+                                "name": "Tier 7 · Documentation / Config",
+                                "desc": "Documentation, comments, non-runtime configuration and supporting project files",
                             },
                         }
-                        g_code, g_res = make_api_request(
-                            f"{api_url}/upgrade-plans/generate",
-                            method="POST",
-                            payload=gen_payload,
-                            timeout=120.0,
-                        )
-                        if g_code in (200, 201) and g_res:
-                            st.session_state["active_plan_id"] = g_res["id"]
-                            st.success(f"Upgrade Plan generated successfully! Plan ID: `{g_res['id']}`")
-                            st.rerun()
+
+                        action_type_styles = {
+                            "REQUIRED_CHANGE": {"color": "#ef4444", "bg": "#ef444420", "label": "Required Change"},
+                            "VALIDATION_ONLY": {"color": "#2563eb", "bg": "#2563eb20", "label": "Validation Only"},
+                            "LOW_PRIORITY_REVIEW": {"color": "#d97706", "bg": "#facc1530", "label": "Review"},
+                            "NO_ACTION": {"color": "#64748b", "bg": "#64748b20", "label": "No Action"},
+                        }
+
+                        if not filtered_tasks:
+                            st.info("No tasks match the active filters.")
                         else:
-                            st.error(f"Plan generation failed ({g_code}): {g_res}")
+                            for t in filtered_tasks:
+                                t_id = t["id"]
+                                step_num = t.get("step_number", 0)
+                                comp = t.get("component", "unknown")
+                                comp_type = t.get("component_type", "function")
+                                cat = t.get("category", "CORE_LOGIC")
+                                reason = t.get("reason", "")
+                                expected = t.get("expected_changes", "")
+                                tests = t.get("required_tests", [])
+                                deps = t.get("dependencies", [])
+                                t_status = t.get("status", "PENDING")
+                                t_risk = t.get("risk_level", "LOW")
+                                is_circ = t.get("is_circular", False)
+                                p_group = t.get("parallel_group_id", 1)
+                                evidence = t.get("evidence") or {}
 
-        # Active Plan Inspector & Task Lifecycle
-        curr_plan_id = st.session_state.get("active_plan_id")
-        if curr_plan_id:
-            plan_code, plan_data = make_api_request(f"{api_url}/upgrade-plans/{curr_plan_id}")
-            if plan_code == 200 and plan_data:
-                st.divider()
+                                t_tier = tier_details.get(cat, tier_details["CORE_LOGIC"])
+                                tier_name_display = t.get("tier_name") or t_tier["name"]
+                                tier_meaning_display = t.get("tier_meaning") or t_tier["desc"]
 
-                p_status = plan_data.get("status", "DRAFT")
-                p_risk = plan_data.get("risk_level", "LOW")
-                metrics = plan_data.get("summary_metrics", {})
-                pct = metrics.get("progress_percentage", 0.0)
+                                act_type = t.get("action_type", "REQUIRED_CHANGE")
+                                act_style = action_type_styles.get(act_type, action_type_styles["REQUIRED_CHANGE"])
 
-                p_significance = plan_data.get("change_significance", "MODERATE_CHANGE")
-                p_reasoning = plan_data.get("significance_reasoning", "")
-                p_recommended_action = plan_data.get("recommended_action", "")
-                p_order_rationale = plan_data.get("order_rationale", "")
-                p_suggestions = plan_data.get("optional_suggestions", [])
+                                circ_alert = ""
+                                if is_circ:
+                                    circ_alert = f"""
+                                    <div style="background: #ef444418; border: 2px solid #ef4444; box-shadow: 2px 2px 0px var(--shadow-color); padding: 6px 10px; margin-bottom: 10px; font-size: 0.8rem; color: #ef4444; font-weight: 700; border-radius: 0px;">
+                                      Circular Dependency: Co-dependent refactoring required across cyclic cluster.
+                                    </div>
+                                    """
 
-                sig_palette = {
-                    "MAJOR_CHANGE": {"border": "#ef4444", "bg": "#ef444420", "text": "#dc2626", "label": "Major Change"},
-                    "MODERATE_CHANGE": {"border": "#f59e0b", "bg": "#f59e0b20", "text": "#d97706", "label": "Moderate Change"},
-                    "MINOR_CHANGE": {"border": "#2563eb", "bg": "#2563eb20", "text": "#2563eb", "label": "Minor Change"},
-                    "NO_ACTION_REQUIRED": {"border": "#64748b", "bg": "#64748b20", "text": "#475569", "label": "No Action Required"},
-                }
-                sig_meta = sig_palette.get(p_significance, sig_palette["MODERATE_CHANGE"])
-
-                risk_colors = {
-                    "CRITICAL": "#ef4444",
-                    "HIGH": "#ea580c",
-                    "MEDIUM": "#d97706",
-                    "LOW": "#16a34a",
-                }
-                r_color = risk_colors.get(p_risk, "#2563eb")
-
-                status_colors = {
-                    "COMPLETED": "#16a34a",
-                    "IN_PROGRESS": "#2563eb",
-                    "DRAFT": "#64748b",
-                    "CANCELLED": "#71717a",
-                }
-                s_color = status_colors.get(p_status, "#64748b")
-
-                # 1. UPGRADE ASSESSMENT CARD
-                render_html(f"""
-                <div style="background: var(--card-bg); border: 2px solid var(--border-color); border-left: 6px solid {sig_meta['border']}; box-shadow: 3px 3px 0px var(--shadow-color); padding: 18px 20px; margin-bottom: 20px; border-radius: 0px;">
-                  <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px;">
-                    <div>
-                      <div style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text-secondary); font-weight: 700;">Upgrade Assessment</div>
-                      <h3 style="margin: 4px 0 6px 0; color: var(--text-primary); font-size: 1.4rem; font-weight: 800; font-family: 'JetBrains Mono', Consolas, monospace;">{plan_data.get('title', 'Upgrade Plan')}</h3>
-                      <div style="font-size: 0.82rem; color: var(--text-secondary); font-family: 'JetBrains Mono', Consolas, monospace;">
-                        Revisions: <span style="background: var(--bg-canvas); border: 1px solid var(--border-color); padding: 2px 6px; font-weight: 700; color: var(--text-primary);">{plan_data.get('base_commit', '')[:7]}</span> ➔ <span style="background: var(--bg-canvas); border: 1px solid var(--border-color); padding: 2px 6px; font-weight: 700; color: var(--text-primary);">{plan_data.get('target_commit', '')[:7]}</span>
-                        &bull; Mode: <strong style="color: var(--text-primary);">{plan_data.get('reasoning_mode', 'HEURISTIC')}</strong>
-                      </div>
-                    </div>
-                    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-                      <div style="background: {sig_meta['bg']}; border: 2px solid {sig_meta['border']}; box-shadow: 2px 2px 0px var(--shadow-color); padding: 6px 12px; text-align: center; border-radius: 0px;">
-                        <div style="font-size: 0.85rem; font-weight: 800; color: {sig_meta['text']}; font-family: 'JetBrains Mono', Consolas, monospace;">{sig_meta['label']}</div>
-                        <div style="font-size: 0.62rem; text-transform: uppercase; color: var(--text-secondary); font-weight: 700; letter-spacing: 0.5px;">Significance</div>
-                      </div>
-                      <div style="background: {r_color}18; border: 2px solid {r_color}; box-shadow: 2px 2px 0px var(--shadow-color); padding: 6px 12px; text-align: center; border-radius: 0px;">
-                        <div style="font-size: 0.85rem; font-weight: 800; color: {r_color}; font-family: 'JetBrains Mono', Consolas, monospace;">{p_risk}</div>
-                        <div style="font-size: 0.62rem; text-transform: uppercase; color: var(--text-secondary); font-weight: 700; letter-spacing: 0.5px;">Risk Rating</div>
-                      </div>
-                      <div style="background: {s_color}18; border: 2px solid {s_color}; box-shadow: 2px 2px 0px var(--shadow-color); padding: 6px 12px; text-align: center; border-radius: 0px;">
-                        <div style="font-size: 0.85rem; font-weight: 800; color: {s_color}; font-family: 'JetBrains Mono', Consolas, monospace;">{p_status}</div>
-                        <div style="font-size: 0.62rem; text-transform: uppercase; color: var(--text-secondary); font-weight: 700; letter-spacing: 0.5px;">Status</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                """)
-
-                # Recommended Action Banner
-                if p_significance in ("MINOR_CHANGE", "NO_ACTION_REQUIRED"):
-                    st.info(
-                        f"**Recommended Action:** {p_recommended_action or 'No major upgrade work required. The revision contains documentation-only changes with no executable behavior or API contract changes.'}"
-                    )
-                else:
-                    st.success(
-                        f"**Recommended Action:** {p_recommended_action or 'A coordinated upgrade is recommended.'}"
-                    )
-
-                if p_reasoning:
-                    st.markdown(f"**Architectural Reasoning:** {p_reasoning}")
-
-                if p_order_rationale:
-                    with st.expander("Why this order?", expanded=True):
-                        st.markdown(p_order_rationale)
-
-                # AI Plan Review (if available)
-                ai_review = plan_data.get("ai_plan_review")
-                if ai_review:
-                    with st.expander("Senior Architect Review", expanded=False):
-                        valid_seq = ai_review.get("sequence_valid", True)
-                        conf = ai_review.get("confidence", "HIGH")
-                        st.markdown(
-                            f"**Topological Sequence:** {'Valid' if valid_seq else 'Review Sequence'} &bull; "
-                            f"**Confidence:** `{conf}`"
-                        )
-                        for w in ai_review.get("warnings", []):
-                            st.warning(f"Advisory: {w}")
-                        for ms in ai_review.get("missing_task_suggestions", []):
-                            st.info(
-                                f"Suggested Component to Review: `{ms.get('component')}` — "
-                                f"{ms.get('reason')} (Confidence: {ms.get('confidence', 'N/A')})"
-                            )
-                        for ut in ai_review.get("unnecessary_tasks", []):
-                            st.caption(f"Potential Non-Critical Item: `{ut.get('component')}` — {ut.get('reason')}")
-
-                # Progress & Metrics (only if tasks exist)
-                all_tasks: list[dict[str, Any]] = plan_data.get("tasks", [])
-                if all_tasks:
-                    st.progress(float(pct) / 100.0)
-                    st.caption(f"**Overall Progress: {pct}%** ({metrics.get('completed_tasks', 0)} of {metrics.get('total_tasks', 0)} tasks resolved)")
-
-                    m_c1, m_c2, m_c3, m_c4, m_c5, m_c6 = st.columns(6)
-                    m_c1.metric("Total Tasks", metrics.get("total_tasks", 0))
-                    m_c2.metric("Completed", metrics.get("completed_tasks", 0))
-                    m_c3.metric("In Progress", metrics.get("in_progress_tasks", 0))
-                    m_c4.metric("Pending", metrics.get("pending_tasks", 0))
-                    m_c5.metric("Blocked", metrics.get("blocked_tasks", 0))
-                    m_c6.metric("Skipped", metrics.get("skipped_tasks", 0))
-
-                    st.divider()
-
-                    # Filter Toolbar
-                    t_col1, t_col2, t_col3, t_col4 = st.columns([1.5, 1.5, 2, 1.5])
-                    with t_col1:
-                        filter_status = st.selectbox(
-                            "Status",
-                            options=["ALL", "PENDING", "IN_PROGRESS", "COMPLETED", "BLOCKED", "SKIPPED"],
-                            index=0,
-                            key="f07_filter_status",
-                        )
-                    with t_col2:
-                        filter_risk = st.selectbox(
-                            "Risk",
-                            options=["ALL", "LOW", "MEDIUM", "HIGH", "CRITICAL"],
-                            index=0,
-                            key="f07_filter_risk",
-                        )
-                    with t_col3:
-                        filter_category = st.selectbox(
-                            "Architectural Tier",
-                            options=[
-                                "ALL",
-                                "CONTRACT_API",
-                                "CORE_LOGIC",
-                                "DATA_MAPPING",
-                                "CONSUMER_HANDLER",
-                                "CLIENT_UI",
-                                "INTEGRATION_TEST",
-                                "DOCUMENTATION_CONFIG",
-                            ],
-                            index=0,
-                            key="f07_filter_cat",
-                        )
-                    with t_col4:
-                        st.write("")
-                        st.download_button(
-                            label="Download Plan JSON",
-                            data=json.dumps(plan_data, indent=2),
-                            file_name=f"upgrade_plan_{curr_plan_id[:8]}.json",
-                            mime="application/json",
-                            use_container_width=True,
-                        )
-
-                    # Filter Tasks
-                    filtered_tasks = all_tasks
-                    if filter_status != "ALL":
-                        filtered_tasks = [t for t in filtered_tasks if t.get("status") == filter_status]
-                    if filter_risk != "ALL":
-                        filtered_tasks = [t for t in filtered_tasks if t.get("risk_level") == filter_risk]
-                    if filter_category != "ALL":
-                        filtered_tasks = [t for t in filtered_tasks if t.get("category") == filter_category]
-
-                    st.markdown(f"#### Ordered Upgrade Tasks ({len(filtered_tasks)} of {len(all_tasks)})")
-
-                    tier_details = {
-                        "CONTRACT_API": {
-                            "border": "#ef4444", "bg": "#ef444418", "text": "#dc2626",
-                            "name": "Tier 1 · API / Contract",
-                            "desc": "Public APIs, interfaces, schemas, request/response contracts",
-                        },
-                        "CORE_LOGIC": {
-                            "border": "#8b5cf6", "bg": "#8b5cf618", "text": "#7c3aed",
-                            "name": "Tier 2 · Core Logic",
-                            "desc": "Business rules, services, domain/application logic",
-                        },
-                        "DATA_MAPPING": {
-                            "border": "#2563eb", "bg": "#2563eb18", "text": "#2563eb",
-                            "name": "Tier 3 · Data / Mapping",
-                            "desc": "Database models, repositories, ORM mappings, serialization/data transformations",
-                        },
-                        "CONSUMER_HANDLER": {
-                            "border": "#f59e0b", "bg": "#f59e0b18", "text": "#d97706",
-                            "name": "Tier 4 · Handlers / Consumers",
-                            "desc": "Event handlers, webhooks, message consumers, adapters",
-                        },
-                        "CLIENT_UI": {
-                            "border": "#ec4899", "bg": "#ec489918", "text": "#db2777",
-                            "name": "Tier 5 · Client / UI",
-                            "desc": "Frontend, UI components, templates, client-facing behavior",
-                        },
-                        "INTEGRATION_TEST": {
-                            "border": "#10b981", "bg": "#10b98118", "text": "#059669",
-                            "name": "Tier 6 · Tests / Integration",
-                            "desc": "Unit, integration, end-to-end and regression tests",
-                        },
-                        "DOCUMENTATION_CONFIG": {
-                            "border": "#64748b", "bg": "#64748b18", "text": "#475569",
-                            "name": "Tier 7 · Documentation / Config",
-                            "desc": "Documentation, comments, non-runtime configuration and supporting project files",
-                        },
-                    }
-
-                    action_type_styles = {
-                        "REQUIRED_CHANGE": {"color": "#ef4444", "bg": "#ef444420", "label": "Required Change"},
-                        "VALIDATION_ONLY": {"color": "#2563eb", "bg": "#2563eb20", "label": "Validation Only"},
-                        "LOW_PRIORITY_REVIEW": {"color": "#d97706", "bg": "#facc1530", "label": "Review"},
-                        "NO_ACTION": {"color": "#64748b", "bg": "#64748b20", "label": "No Action"},
-                    }
-
-                    if not filtered_tasks:
-                        st.info("No tasks match the active filters.")
-                    else:
-                        for t in filtered_tasks:
-                            t_id = t["id"]
-                            step_num = t.get("step_number", 0)
-                            comp = t.get("component", "unknown")
-                            comp_type = t.get("component_type", "function")
-                            cat = t.get("category", "CORE_LOGIC")
-                            reason = t.get("reason", "")
-                            expected = t.get("expected_changes", "")
-                            tests = t.get("required_tests", [])
-                            deps = t.get("dependencies", [])
-                            t_status = t.get("status", "PENDING")
-                            t_risk = t.get("risk_level", "LOW")
-                            is_circ = t.get("is_circular", False)
-                            p_group = t.get("parallel_group_id", 1)
-                            evidence = t.get("evidence") or {}
-
-                            t_tier = tier_details.get(cat, tier_details["CORE_LOGIC"])
-                            tier_name_display = t.get("tier_name") or t_tier["name"]
-                            tier_meaning_display = t.get("tier_meaning") or t_tier["desc"]
-
-                            act_type = t.get("action_type", "REQUIRED_CHANGE")
-                            act_style = action_type_styles.get(act_type, action_type_styles["REQUIRED_CHANGE"])
-
-                            circ_alert = ""
-                            if is_circ:
-                                circ_alert = f"""
-                                <div style="background: #ef444418; border: 2px solid #ef4444; box-shadow: 2px 2px 0px var(--shadow-color); padding: 6px 10px; margin-bottom: 10px; font-size: 0.8rem; color: #ef4444; font-weight: 700; border-radius: 0px;">
-                                  Circular Dependency: Co-dependent refactoring required across cyclic cluster.
-                                </div>
-                                """
-
-                            render_html(f"""
-                            <div style="background: var(--card-bg); border: 2px solid var(--border-color); border-left: 6px solid {t_tier['border']}; box-shadow: 3px 3px 0px var(--shadow-color); padding: 14px 16px; margin-bottom: 14px; border-radius: 0px;">
-                              {circ_alert}
-                              <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 10px;">
-                                <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
-                                  <span style="background: var(--text-primary); color: var(--card-bg); border: 1.5px solid var(--border-color); font-weight: 800; font-size: 0.78rem; padding: 2px 8px; font-family: 'JetBrains Mono', Consolas, monospace; border-radius: 0px;">STEP {step_num}</span>
-                                  <span style="background: {t_tier['bg']}; color: {t_tier['text']}; border: 1.5px solid {t_tier['border']}; font-size: 0.75rem; padding: 2px 8px; font-weight: 700; font-family: 'JetBrains Mono', Consolas, monospace; border-radius: 0px;">{tier_name_display}</span>
-                                  <span style="background: {act_style['bg']}; color: {act_style['color']}; border: 1.5px solid {act_style['color']}; font-size: 0.75rem; padding: 2px 8px; font-weight: 700; font-family: 'JetBrains Mono', Consolas, monospace; border-radius: 0px;">{act_style['label']}</span>
-                                  <span style="background: var(--bg-canvas); color: var(--text-secondary); border: 1px solid var(--border-color); font-size: 0.72rem; padding: 2px 6px; font-family: 'JetBrains Mono', Consolas, monospace; border-radius: 0px;">STREAM #{p_group}</span>
-                                </div>
-                                <div style="display: flex; gap: 6px; align-items: center;">
-                                  <span style="font-size: 0.75rem; font-family: 'JetBrains Mono', Consolas, monospace; font-weight: 700; color: {risk_colors.get(t_risk, '#94a3b8')}; border: 1.5px solid {risk_colors.get(t_risk, '#94a3b8')}; padding: 2px 8px; background: {risk_colors.get(t_risk, '#94a3b8')}18; border-radius: 0px;">RISK: {t_risk}</span>
-                                  <span style="font-size: 0.75rem; font-family: 'JetBrains Mono', Consolas, monospace; font-weight: 700; color: {status_colors.get(t_status, '#94a3b8')}; border: 1.5px solid {status_colors.get(t_status, '#94a3b8')}; padding: 2px 8px; background: {status_colors.get(t_status, '#94a3b8')}18; border-radius: 0px;">{t_status}</span>
-                                </div>
-                              </div>
-                              <div style="font-size: 0.74rem; color: var(--text-secondary); margin-bottom: 8px;">
-                                {tier_meaning_display}
-                              </div>
-                              <div style="font-size: 1.02rem; font-weight: 800; color: var(--text-primary); margin-bottom: 8px;">
-                                <code style="font-family: 'JetBrains Mono', Consolas, monospace; background: var(--bg-canvas); border: 1px solid var(--border-color); padding: 2px 6px; font-size: 0.95rem; color: var(--text-primary);">{comp}</code> <span style="color: var(--text-secondary); font-size: 0.8rem; font-weight: 600; font-family: 'JetBrains Mono', Consolas, monospace;">({comp_type})</span>
-                              </div>
-                              <div style="font-size: 0.85rem; color: var(--text-primary); margin-bottom: 8px; line-height: 1.4;">
-                                <strong>Why this matters:</strong> {reason}
-                              </div>
-                              <div style="background: var(--bg-canvas); border: 1px solid var(--border-color); border-left: 4px solid var(--accent-blue); padding: 8px 12px; margin-bottom: 8px; font-size: 0.82rem; color: var(--text-primary); border-radius: 0px;">
-                                <strong>{'Validation:' if act_type == 'VALIDATION_ONLY' else 'What to change:'}</strong> {expected}
-                              </div>
-                            </div>
-                            """)
-
-                            c_m1, c_m2 = st.columns(2)
-                            with c_m1:
-                                if deps:
-                                    st.caption(f"**Depends on ({len(deps)}):**")
-                                    st.write(", ".join(f"`{d}`" for d in deps))
-                                else:
-                                    st.caption("**Depends on:** None (Root Step)")
-                            with c_m2:
-                                if tests:
-                                    st.caption(f"**Required Tests ({len(tests)}):**")
-                                    st.write(", ".join(f"`{test}`" for test in tests))
-                                else:
-                                    st.caption("**Required Tests:** None")
-
-                            diff_snip = evidence.get("diff_snippet", "")
-                            call_chain = evidence.get("call_chain", [])
-                            lines_aff = evidence.get("lines_affected", [])
-                            if diff_snip or call_chain:
-                                with st.expander(f"Evidence for `{comp}`"):
-                                    if call_chain:
-                                        st.caption(f"Call Chain: `{' ➜ '.join(call_chain)}`")
-                                    if lines_aff and len(lines_aff) == 2 and lines_aff != [0, 0]:
-                                        st.caption(f"Lines Affected: {lines_aff[0]}–{lines_aff[1]}")
-                                    if diff_snip:
-                                        st.code(diff_snip, language="diff")
-
-                            # Interactive Status Updater
-                            with st.expander(f"Update Step #{step_num} Status", expanded=False):
-                                u_col1, u_col2, u_col3 = st.columns([2, 3, 1.5])
-                                with u_col1:
-                                    new_st = st.selectbox(
-                                        "Status",
-                                        options=["PENDING", "IN_PROGRESS", "COMPLETED", "BLOCKED", "SKIPPED"],
-                                        index=["PENDING", "IN_PROGRESS", "COMPLETED", "BLOCKED", "SKIPPED"].index(t_status) if t_status in ["PENDING", "IN_PROGRESS", "COMPLETED", "BLOCKED", "SKIPPED"] else 0,
-                                        key=f"status_sel_{t_id}",
-                                    )
-                                with u_col2:
-                                    new_notes = st.text_input(
-                                        "Developer Notes",
-                                        value=t.get("notes") or "",
-                                        placeholder="e.g. verified locally",
-                                        key=f"notes_in_{t_id}",
-                                    )
-                                with u_col3:
-                                    st.write("")
-                                    if st.button("Save", key=f"btn_save_{t_id}", use_container_width=True):
-                                        patch_payload = {"status": new_st, "notes": new_notes.strip() or None}
-                                        p_code, p_res = make_api_request(
-                                            f"{api_url}/upgrade-plans/{curr_plan_id}/tasks/{t_id}",
-                                            method="PATCH",
-                                            payload=patch_payload,
-                                        )
-                                        if p_code == 200:
-                                            st.success(f"Step #{step_num} updated to {new_st}")
-                                            st.rerun()
-                                        else:
-                                            st.error(f"Failed to update task: {p_res}")
-
-                # 3. OPTIONAL RECOMMENDATIONS (TASK != SUGGESTION)
-                info_changes = plan_data.get("informational_changes", [])
-                if p_suggestions or info_changes:
-                    st.divider()
-                    st.markdown("#### Optional Recommendations")
-                    st.caption(
-                        "Advisory guidance and non-code items. Suggestions do NOT affect upgrade "
-                        "task count, dependency ordering, or progress tracking."
-                    )
-
-                    if p_suggestions:
-                        for sug in p_suggestions:
-                            st.markdown(f"&bull; {sug}")
-
-                    if info_changes:
-                        with st.expander(f"Non-Behavioral & Documentation Changes ({len(info_changes)})", expanded=False):
-                            for ic in info_changes:
                                 render_html(f"""
-                                <div style="background: var(--card-bg); border: 1.5px solid var(--border-color); border-left: 4px solid var(--text-secondary); box-shadow: 2px 2px 0px var(--shadow-color); padding: 8px 12px; margin-bottom: 8px; border-radius: 0px;">
-                                  <div style="font-weight: 700; color: var(--text-primary); font-family: 'JetBrains Mono', Consolas, monospace;"><code>{ic.get('component')}</code> <span style="font-size: 0.72rem; color: var(--text-secondary);">({ic.get('actionability', 'INFORMATIONAL')})</span></div>
-                                  <div style="font-size: 0.82rem; color: var(--text-secondary); margin-top: 4px;">{ic.get('reason')}</div>
+                                <div style="background: var(--card-bg); border: 2px solid var(--border-color); border-left: 6px solid {t_tier['border']}; box-shadow: 3px 3px 0px var(--shadow-color); padding: 14px 16px; margin-bottom: 14px; border-radius: 0px;">
+                                  {circ_alert}
+                                  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 10px;">
+                                    <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                                      <span style="background: var(--text-primary); color: var(--card-bg); border: 1.5px solid var(--border-color); font-weight: 800; font-size: 0.78rem; padding: 2px 8px; font-family: 'JetBrains Mono', Consolas, monospace; border-radius: 0px;">STEP {step_num}</span>
+                                      <span style="background: {t_tier['bg']}; color: {t_tier['text']}; border: 1.5px solid {t_tier['border']}; font-size: 0.75rem; padding: 2px 8px; font-weight: 700; font-family: 'JetBrains Mono', Consolas, monospace; border-radius: 0px;">{tier_name_display}</span>
+                                      <span style="background: {act_style['bg']}; color: {act_style['color']}; border: 1.5px solid {act_style['color']}; font-size: 0.75rem; padding: 2px 8px; font-weight: 700; font-family: 'JetBrains Mono', Consolas, monospace; border-radius: 0px;">{act_style['label']}</span>
+                                      <span style="background: var(--bg-canvas); color: var(--text-secondary); border: 1px solid var(--border-color); font-size: 0.72rem; padding: 2px 6px; font-family: 'JetBrains Mono', Consolas, monospace; border-radius: 0px;">STREAM #{p_group}</span>
+                                    </div>
+                                    <div style="display: flex; gap: 6px; align-items: center;">
+                                      <span style="font-size: 0.75rem; font-family: 'JetBrains Mono', Consolas, monospace; font-weight: 700; color: {risk_colors.get(t_risk, '#94a3b8')}; border: 1.5px solid {risk_colors.get(t_risk, '#94a3b8')}; padding: 2px 8px; background: {risk_colors.get(t_risk, '#94a3b8')}18; border-radius: 0px;">RISK: {t_risk}</span>
+                                      <span style="font-size: 0.75rem; font-family: 'JetBrains Mono', Consolas, monospace; font-weight: 700; color: {status_colors.get(t_status, '#94a3b8')}; border: 1.5px solid {status_colors.get(t_status, '#94a3b8')}; padding: 2px 8px; background: {status_colors.get(t_status, '#94a3b8')}18; border-radius: 0px;">{t_status}</span>
+                                    </div>
+                                  </div>
+                                  <div style="font-size: 0.74rem; color: var(--text-secondary); margin-bottom: 8px;">
+                                    {tier_meaning_display}
+                                  </div>
+                                  <div style="font-size: 1.02rem; font-weight: 800; color: var(--text-primary); margin-bottom: 8px;">
+                                    <code style="font-family: 'JetBrains Mono', Consolas, monospace; background: var(--bg-canvas); border: 1px solid var(--border-color); padding: 2px 6px; font-size: 0.95rem; color: var(--text-primary);">{comp}</code> <span style="color: var(--text-secondary); font-size: 0.8rem; font-weight: 600; font-family: 'JetBrains Mono', Consolas, monospace;">({comp_type})</span>
+                                  </div>
+                                  <div style="font-size: 0.85rem; color: var(--text-primary); margin-bottom: 8px; line-height: 1.4;">
+                                    <strong>Why this matters:</strong> {reason}
+                                  </div>
+                                  <div style="background: var(--bg-canvas); border: 1px solid var(--border-color); border-left: 4px solid var(--accent-blue); padding: 8px 12px; margin-bottom: 8px; font-size: 0.82rem; color: var(--text-primary); border-radius: 0px;">
+                                    <strong>{'Validation:' if act_type == 'VALIDATION_ONLY' else 'What to change:'}</strong> {expected}
+                                  </div>
                                 </div>
                                 """)
-                                if ic.get("diff_snippet"):
-                                    with st.expander(f"Diff for {ic.get('component')}"):
-                                        st.code(ic.get("diff_snippet"), language="diff")
-            else:
-                st.error(f"Failed to load plan `{curr_plan_id}`: {plan_data}")
+
+                                c_m1, c_m2 = st.columns(2)
+                                with c_m1:
+                                    if deps:
+                                        st.caption(f"**Depends on ({len(deps)}):**")
+                                        st.write(", ".join(f"`{d}`" for d in deps))
+                                    else:
+                                        st.caption("**Depends on:** None (Root Step)")
+                                with c_m2:
+                                    if tests:
+                                        st.caption(f"**Required Tests ({len(tests)}):**")
+                                        st.write(", ".join(f"`{test}`" for test in tests))
+                                    else:
+                                        st.caption("**Required Tests:** None")
+
+                                diff_snip = evidence.get("diff_snippet", "")
+                                call_chain = evidence.get("call_chain", [])
+                                lines_aff = evidence.get("lines_affected", [])
+                                if diff_snip or call_chain:
+                                    with st.expander(f"Evidence for `{comp}`"):
+                                        if call_chain:
+                                            st.caption(f"Call Chain: `{' ➜ '.join(call_chain)}`")
+                                        if lines_aff and len(lines_aff) == 2 and lines_aff != [0, 0]:
+                                            st.caption(f"Lines Affected: {lines_aff[0]}–{lines_aff[1]}")
+                                        if diff_snip:
+                                            st.code(diff_snip, language="diff")
+
+                                # Interactive Status Updater
+                                with st.expander(f"Update Step #{step_num} Status", expanded=False):
+                                    u_col1, u_col2, u_col3 = st.columns([2, 3, 1.5])
+                                    with u_col1:
+                                        new_st = st.selectbox(
+                                            "Status",
+                                            options=["PENDING", "IN_PROGRESS", "COMPLETED", "BLOCKED", "SKIPPED"],
+                                            index=["PENDING", "IN_PROGRESS", "COMPLETED", "BLOCKED", "SKIPPED"].index(t_status) if t_status in ["PENDING", "IN_PROGRESS", "COMPLETED", "BLOCKED", "SKIPPED"] else 0,
+                                            key=f"status_sel_{t_id}",
+                                        )
+                                    with u_col2:
+                                        new_notes = st.text_input(
+                                            "Developer Notes",
+                                            value=t.get("notes") or "",
+                                            placeholder="e.g. verified locally",
+                                            key=f"notes_in_{t_id}",
+                                        )
+                                    with u_col3:
+                                        st.write("")
+                                        if st.button("Save", key=f"btn_save_{t_id}", use_container_width=True):
+                                            patch_payload = {"status": new_st, "notes": new_notes.strip() or None}
+                                            p_code, p_res = make_api_request(
+                                                f"{api_url}/upgrade-plans/{curr_plan_id}/tasks/{t_id}",
+                                                method="PATCH",
+                                                payload=patch_payload,
+                                            )
+                                            if p_code == 200:
+                                                st.success(f"Step #{step_num} updated to {new_st}")
+                                                st.rerun()
+                                            else:
+                                                st.error(f"Failed to update task: {p_res}")
+
+                    # 3. OPTIONAL RECOMMENDATIONS (TASK != SUGGESTION)
+                    info_changes = plan_data.get("informational_changes", [])
+                    if p_suggestions or info_changes:
+                        st.divider()
+                        st.markdown("#### Optional Recommendations")
+                        st.caption(
+                            "Advisory guidance and non-code items. Suggestions do NOT affect upgrade "
+                            "task count, dependency ordering, or progress tracking."
+                        )
+
+                        if p_suggestions:
+                            for sug in p_suggestions:
+                                st.markdown(f"&bull; {sug}")
+
+                        if info_changes:
+                            with st.expander(f"Non-Behavioral & Documentation Changes ({len(info_changes)})", expanded=False):
+                                for ic in info_changes:
+                                    render_html(f"""
+                                    <div style="background: var(--card-bg); border: 1.5px solid var(--border-color); border-left: 4px solid var(--text-secondary); box-shadow: 2px 2px 0px var(--shadow-color); padding: 8px 12px; margin-bottom: 8px; border-radius: 0px;">
+                                      <div style="font-weight: 700; color: var(--text-primary); font-family: 'JetBrains Mono', Consolas, monospace;"><code>{ic.get('component')}</code> <span style="font-size: 0.72rem; color: var(--text-secondary);">({ic.get('actionability', 'INFORMATIONAL')})</span></div>
+                                      <div style="font-size: 0.82rem; color: var(--text-secondary); margin-top: 4px;">{ic.get('reason')}</div>
+                                    </div>
+                                    """)
+                                    if ic.get("diff_snippet"):
+                                        with st.expander(f"Diff for {ic.get('component')}"):
+                                            st.code(ic.get("diff_snippet"), language="diff")
+                else:
+                    st.error(f"Failed to load plan `{curr_plan_id}`: {plan_data}")
+
+    if col_assistant is not None:
+        with col_assistant:
+            render_assistant_panel(
+                api_url=api_url,
+                project_id=selected_project_id,
+                active_run_id=st.session_state.get("active_run_id"),
+                enable_ai=enable_ai,
+                is_dark=(theme_mode.lower() == "dark"),
+            )
 
 
 if __name__ == "__main__":

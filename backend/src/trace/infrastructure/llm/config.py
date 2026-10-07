@@ -3,7 +3,7 @@
 import os
 from dataclasses import dataclass, field
 
-DEFAULT_FREE_MODEL = "mistralai/mistral-7b-instruct:free"
+DEFAULT_FREE_MODEL = "nvidia/nemotron-3.5-lightning:free"
 
 
 def get_default_model() -> str:
