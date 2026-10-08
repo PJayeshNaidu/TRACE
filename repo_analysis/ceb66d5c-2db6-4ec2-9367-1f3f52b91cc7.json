@@ -1,16 +1,16 @@
 {
   "schema_version": "1.0.0",
   "analysis_run": {
-    "analysis_run_id": "50909388-d390-4205-8281-61975d56509f",
-    "repository_id": "6623522a-9634-4e10-87b7-97c923d749f6",
+    "analysis_run_id": "ceb66d5c-2db6-4ec2-9367-1f3f52b91cc7",
+    "repository_id": "18004541-8a92-4b19-9d7a-611411b36907",
     "status": "COMPLETED",
-    "started_at": "2026-10-08T05:27:58.756962+00:00",
-    "completed_at": "2026-10-08T05:27:58.773012+00:00",
-    "duration_ms": 16.05,
+    "started_at": "2026-10-06T05:00:07.909276+00:00",
+    "completed_at": "2026-10-06T05:00:07.956701+00:00",
+    "duration_ms": 47.43,
     "analyzer_version": "0.1.0"
   },
   "repository": {
-    "repository_id": "6623522a-9634-4e10-87b7-97c923d749f6",
+    "repository_id": "18004541-8a92-4b19-9d7a-611411b36907",
     "name": "sample_repo",
     "url": "C:\\Users\\TanishaKharbe\\TRACE\\backend\\tests\\fixtures\\sample_repo",
     "root_path": "C:\\Users\\TanishaKharbe\\TRACE\\backend\\tests\\fixtures\\sample_repo",
@@ -39,7 +39,7 @@
             "parent_commits": [],
             "message": "Commit 1234567",
             "author": "TRACE",
-            "timestamp": "2026-10-08T05:27:58.773012+00:00"
+            "timestamp": "2026-10-06T05:00:07.956701+00:00"
           }
         ]
       }

@@ -205,20 +205,69 @@ def benchmark_harness():
         sym_l = (symbol_or_component or "").lower()
         if "auth" in sym_l:
             return {
+                "type": "risk",
+                "target_component": "AuthService",
+                "file_path": "src/services/auth.py",
+                "tier": "CONTRACT_API",
+                "tier_number": 1,
+                "tier_name": "API / Contract",
                 "risk_level": "HIGH",
                 "risk_score": 75.0,
                 "factors": ["Missing unit test coverage (0 tests found)", "Direct authentication gateway"],
                 "callers_at_risk": ["LoginController", "TokenValidator"],
                 "remediations": ["Author unit regression tests for auth_service.py"],
             }
-        # Default high-risk component fixture
+        if symbol_or_component:
+            return {
+                "type": "risk",
+                "target_component": symbol_or_component,
+                "file_path": "src/api/payment_gateway.py",
+                "tier": "CORE_LOGIC",
+                "tier_number": 2,
+                "tier_name": "Core Logic",
+                "risk_level": "HIGH",
+                "risk_score": 78.5,
+                "factors": ["High fan-in (14 callers)", "Breaking parameter changes in process_charge"],
+                "callers_at_risk": ["OrderService", "BillingWorker", "CheckoutService"],
+                "remediations": ["Pin legacy signature and roll out staged upgrade"],
+            }
+        # General repository risk query (symbol_or_component is None)
         return {
-            "target_component": "CorePaymentEngine",
+            "type": "risk",
             "risk_level": "HIGH",
             "risk_score": 78.5,
-            "factors": ["High fan-in (14 callers)", "Breaking parameter changes in process_charge"],
-            "callers_at_risk": ["OrderService", "BillingWorker", "CheckoutService"],
-            "remediations": ["Pin legacy signature and roll out staged upgrade"],
+            "factors": ["Repository contains 2 breaking API changes"],
+            "high_risk_components": [
+                {
+                    "component": "CorePaymentEngine",
+                    "file_path": "src/api/payment_gateway.py",
+                    "tier": "CORE_LOGIC",
+                    "tier_number": 2,
+                    "tier_name": "Core Logic",
+                    "risk_level": "HIGH",
+                    "risk_score": 78.5,
+                    "factors": ["Direct external API boundary", "High fan-in (14 callers)"],
+                    "callers_at_risk": ["OrderService", "BillingWorker", "CheckoutService"],
+                    "remediations": ["Pin legacy signature and roll out staged upgrade"],
+                    "step_number": 2,
+                    "required_tests": ["tests/test_payment.py"],
+                },
+                {
+                    "component": "AuthService",
+                    "file_path": "src/services/auth.py",
+                    "tier": "CONTRACT_API",
+                    "tier_number": 1,
+                    "tier_name": "API / Contract",
+                    "risk_level": "HIGH",
+                    "risk_score": 75.0,
+                    "factors": ["No test coverage found"],
+                    "callers_at_risk": ["LoginController"],
+                    "remediations": ["Add regression test suite"],
+                    "step_number": 1,
+                    "required_tests": [],
+                },
+            ],
+            "remediations": ["Execute upgrade plan in topological order"],
         }
 
     mock_tools.get_impact_and_risk = AsyncMock(side_effect=mock_impact_and_risk)
@@ -613,3 +662,113 @@ async def test_benchmark_9_missing_entity(benchmark_harness):
 
     # 3. Zero hallucinated sources
     assert len(final_state["sources"]) == 0
+
+
+# ===========================================================================
+# Dedicated Acceptance Tests for F10 Core Queries
+# ===========================================================================
+
+
+@pytest.mark.asyncio
+async def test_highest_risk_components_names_actual_entities(benchmark_harness):
+    """Scenario 1: 'What are the highest risk components?' retrieves and names specific entities with tiers/weights."""
+    tools = benchmark_harness["tools"]
+    synthesis = benchmark_harness["synthesis"]
+    graph = build_assistant_graph(tools, synthesis)
+
+    initial_state = AssistantState(
+        project_id=benchmark_harness["project_id"],
+        analysis_run_id=benchmark_harness["analysis_run_id"],
+        repository_id=benchmark_harness["repository_id"],
+        question="What are the highest risk components?",
+    )
+
+    final_state = await graph.ainvoke(initial_state)
+
+    ans = final_state["final_answer"]
+    # 1. Names actual entities, not just aggregate metrics
+    assert "CorePaymentEngine" in ans
+    assert "AuthService" in ans
+    # 2. Includes architectural tier / weight classification
+    assert "Tier 2 - Core Logic" in ans or "Core Logic" in ans
+    assert "Tier 1 - API / Contract" in ans or "API / Contract" in ans
+    # 3. Includes risk score / level
+    assert "85.0" in ans or "HIGH" in ans
+    # 4. Includes callers at risk
+    assert "OrderService" in ans or "BillingWorker" in ans or "LoginController" in ans
+    # 5. Distinguishes repository metrics from individual high-risk components
+    assert "Repository Risk" in ans or "Overall Risk" in ans
+    # 6. No internal tool or raw JSON exposure
+    assert "```json" not in ans
+    assert "get_impact_and_risk" not in ans
+
+
+@pytest.mark.asyncio
+async def test_specific_component_risk_explanation(benchmark_harness):
+    """Scenario 2: 'Why is [specific component] high risk?' returns detailed breakdown."""
+    tools = benchmark_harness["tools"]
+    synthesis = benchmark_harness["synthesis"]
+    graph = build_assistant_graph(tools, synthesis)
+
+    initial_state = AssistantState(
+        project_id=benchmark_harness["project_id"],
+        analysis_run_id=benchmark_harness["analysis_run_id"],
+        repository_id=benchmark_harness["repository_id"],
+        question="Why is CorePaymentEngine high risk?",
+    )
+
+    final_state = await graph.ainvoke(initial_state)
+
+    ans = final_state["final_answer"]
+    assert "CorePaymentEngine" in ans
+    assert "HIGH" in ans
+    assert "78.5" in ans
+    assert "Tier 2 - Core Logic" in ans or "Core Logic" in ans
+    assert "OrderService" in ans or "BillingWorker" in ans or "CheckoutService" in ans
+    assert "```json" not in ans
+
+
+@pytest.mark.asyncio
+async def test_which_upgrade_tasks_should_execute_first(benchmark_harness):
+    """Scenario 3: 'Which upgrade tasks should execute first?' identifies initial root tasks."""
+    tools = benchmark_harness["tools"]
+    synthesis = benchmark_harness["synthesis"]
+    graph = build_assistant_graph(tools, synthesis)
+
+    initial_state = AssistantState(
+        project_id=benchmark_harness["project_id"],
+        analysis_run_id=benchmark_harness["analysis_run_id"],
+        repository_id=benchmark_harness["repository_id"],
+        question="Which upgrade tasks should execute first?",
+    )
+
+    final_state = await graph.ainvoke(initial_state)
+
+    ans = final_state["final_answer"]
+    assert "TASK-001" in ans
+    assert "Step 1" in ans
+    assert "Update Base Schema" in ans or "Foundational" in ans or "Ordering Rationale" in ans
+    assert "```json" not in ans
+
+
+@pytest.mark.asyncio
+async def test_affected_components_low_test_coverage(benchmark_harness):
+    """Scenario 4: 'Which affected components have low test coverage?' reports test validation needs."""
+    tools = benchmark_harness["tools"]
+    synthesis = benchmark_harness["synthesis"]
+    graph = build_assistant_graph(tools, synthesis)
+
+    initial_state = AssistantState(
+        project_id=benchmark_harness["project_id"],
+        analysis_run_id=benchmark_harness["analysis_run_id"],
+        repository_id=benchmark_harness["repository_id"],
+        question="Which affected components have low test coverage?",
+    )
+
+    final_state = await graph.ainvoke(initial_state)
+
+    ans = final_state["final_answer"]
+    assert "Test Coverage" in ans or "Validation" in ans
+    assert "AuthService" in ans or "CorePaymentEngine" in ans
+    assert "```json" not in ans
+

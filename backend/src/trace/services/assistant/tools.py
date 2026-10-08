@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 import structlog
@@ -90,6 +90,54 @@ async def resolve_target_run(
     except Exception as exc:
         logger.debug("Failed to resolve target analysis run", error=str(exc))
         return None, analysis_run_id
+
+
+from trace.domain.plan import TIER_DEFINITIONS, TaskCategory
+
+TIER_WEIGHTS_MAP: dict[str, int] = {
+    "CONTRACT_API": 1,
+    "CORE_LOGIC": 2,
+    "DATA_MAPPING": 3,
+    "CONSUMER_HANDLER": 4,
+    "CLIENT_UI": 5,
+    "INTEGRATION_TEST": 6,
+    "DOCUMENTATION_CONFIG": 7,
+}
+
+TIER_NAMES_MAP: dict[str, str] = {
+    "CONTRACT_API": "API / Contract",
+    "CORE_LOGIC": "Core Logic",
+    "DATA_MAPPING": "Data / Mapping",
+    "CONSUMER_HANDLER": "Handlers / Consumers",
+    "CLIENT_UI": "Client / UI",
+    "INTEGRATION_TEST": "Tests / Integration",
+    "DOCUMENTATION_CONFIG": "Documentation / Config",
+}
+
+
+def resolve_tier_info(category_str: str | None) -> tuple[int, str, str]:
+    """Returns (tier_number, tier_name, canonical_category) using F07 7-tier classification."""
+    if not category_str:
+        return (2, "Core Logic", "CORE_LOGIC")
+    cat_clean = category_str.strip().upper()
+    try:
+        task_cat = TaskCategory(cat_clean)
+        tier_def = TIER_DEFINITIONS[task_cat]
+        return (tier_def["tier_number"], tier_def["name"], task_cat.value)
+    except (ValueError, KeyError):
+        if any(k in cat_clean for k in ("CONTRACT", "API", "SCHEMA", "ENDPOINT", "ROUTE")):
+            return (1, "API / Contract", "CONTRACT_API")
+        if any(k in cat_clean for k in ("DATA", "MAPPING", "MODEL", "ORM", "DATABASE", "DB", "MIGRATION")):
+            return (3, "Data / Mapping", "DATA_MAPPING")
+        if any(k in cat_clean for k in ("CONSUMER", "HANDLER", "EVENT", "WEBHOOK", "ADAPTER")):
+            return (4, "Handlers / Consumers", "CONSUMER_HANDLER")
+        if any(k in cat_clean for k in ("CLIENT", "UI", "FRONTEND", "VIEW", "TEMPLATE")):
+            return (5, "Client / UI", "CLIENT_UI")
+        if any(k in cat_clean for k in ("TEST", "INTEGRATION", "UNIT_TEST", "E2E")):
+            return (6, "Tests / Integration", "INTEGRATION_TEST")
+        if any(k in cat_clean for k in ("DOC", "DOCUMENTATION", "CONFIG", "ENV")):
+            return (7, "Documentation / Config", "DOCUMENTATION_CONFIG")
+        return (2, "Core Logic", "CORE_LOGIC")
 
 
 class AssistantTools:
@@ -470,6 +518,7 @@ class AssistantTools:
     ) -> dict[str, Any]:
         """Tool 5: Fetch blast radius, risk metrics, and mitigation steps strictly scoped to analysis_run_id."""
         impact_data: dict[str, Any] = {
+            "type": "risk",
             "analysis_run_id": str(analysis_run_id),
             "risk_level": "UNKNOWN",
             "risk_score": 0.0,
@@ -477,6 +526,8 @@ class AssistantTools:
             "callers_at_risk": [],
             "remediations": [],
             "affected_entities": [],
+            "high_risk_components": [],
+            "components": [],
         }
 
         try:
@@ -512,33 +563,179 @@ class AssistantTools:
                 ]
                 impact_data["remediations"] = ["Run integration regression tests for downstream callers"]
 
-                # If artifact file exists, drill down into component-level risks
-                if target_rec.artifact_path and Path(target_rec.artifact_path).exists():
-                    raw_imp = json.loads(Path(target_rec.artifact_path).read_text(encoding="utf-8"))
-                    affected = raw_imp.get("affected_components", raw_imp.get("affected_symbols", []))
-                    impact_data["affected_entities"] = [
-                        item.get("symbol_id") or item.get("qualified_name") or item.get("name")
-                        for item in affected[:10]
-                        if item
-                    ]
+                # 3. Query UpgradePlan and UpgradeTasks from database
+                plan_stmt = (
+                    select(UpgradePlanOrm)
+                    .where(UpgradePlanOrm.repository_id == repo_id)
+                    .order_by(desc(UpgradePlanOrm.created_at))
+                    .limit(1)
+                )
+                plan = (await session.execute(plan_stmt)).scalar_one_or_none()
+                tasks: list[UpgradeTaskOrm] = []
+                if plan:
+                    tasks_stmt = (
+                        select(UpgradeTaskOrm)
+                        .where(UpgradeTaskOrm.plan_id == plan.id)
+                        .order_by(UpgradeTaskOrm.step_number)
+                    )
+                    tasks = list((await session.execute(tasks_stmt)).scalars().all())
 
-                    # Filter for specific symbol if requested
-                    if symbol_or_component:
-                        sym_l = symbol_or_component.lower()
-                        for item in affected:
-                            s_name = item.get("symbol_id") or item.get("qualified_name") or item.get("name", "")
-                            if sym_l in s_name.lower():
-                                impact_data["target_component"] = s_name
-                                impact_data["risk_level"] = item.get("risk_level", impact_data["risk_level"])
-                                impact_data["risk_score"] = float(item.get("risk_score", impact_data["risk_score"]))
-                                impact_data["factors"] = item.get("risk_factors", impact_data["factors"])
-                                impact_data["callers_at_risk"] = item.get("callers_at_risk", [])[:5]
-                                impact_data["remediations"] = item.get("recommendations", impact_data["remediations"])
+                # 4. Load impact artifact if available
+                artifact_impacts: list[dict[str, Any]] = []
+                if target_rec.artifact_path and Path(target_rec.artifact_path).exists():
+                    try:
+                        raw_imp = json.loads(Path(target_rec.artifact_path).read_text(encoding="utf-8"))
+                        if "impact_analysis" in raw_imp and isinstance(raw_imp["impact_analysis"], dict):
+                            artifact_impacts = raw_imp["impact_analysis"].get("detailed_impacts", [])
+                        elif "detailed_impacts" in raw_imp:
+                            artifact_impacts = raw_imp.get("detailed_impacts", [])
+                        elif "affected_components" in raw_imp:
+                            artifact_impacts = raw_imp.get("affected_components", [])
+                        elif "affected_symbols" in raw_imp:
+                            artifact_impacts = raw_imp.get("affected_symbols", [])
+                    except Exception as exc:
+                        logger.debug("Failed to read impact artifact JSON", error=str(exc))
+
+                # 5. Build unified component records merging artifact impacts and upgrade tasks
+                components_map: dict[str, dict[str, Any]] = {}
+
+                # Ingest artifact detailed impacts
+                for item in artifact_impacts:
+                    c_name = item.get("entity") or item.get("symbol_id") or item.get("qualified_name") or item.get("name")
+                    if not c_name:
+                        continue
+                    file_p = item.get("file") or item.get("file_path")
+                    cat_hint = item.get("category") or item.get("entity_type")
+                    tier_num, tier_name, cat_val = resolve_tier_info(cat_hint)
+
+                    callers_raw = item.get("callers_at_risk", [])
+                    callers_list: list[str] = []
+                    for c in callers_raw:
+                        if isinstance(c, dict):
+                            callers_list.append(c.get("qualified_name") or c.get("name") or str(c))
+                        elif isinstance(c, str):
+                            callers_list.append(c)
+
+                    item_risk_lvl = item.get("risk_level", target_rec.risk_level)
+                    item_score = float(item.get("risk_score", 75.0 if item_risk_lvl == "HIGH" else (90.0 if item_risk_lvl == "CRITICAL" else 35.0)))
+                    factors = item.get("risk_factors") or ([item.get("change_summary")] if item.get("change_summary") else []) or ([item.get("justification")] if item.get("justification") else [])
+                    recs = item.get("recommendations") or ([item.get("remediation_guidance")] if item.get("remediation_guidance") else [])
+
+                    components_map[c_name.lower()] = {
+                        "component": c_name,
+                        "file_path": file_p,
+                        "category": cat_val,
+                        "tier": cat_val,
+                        "tier_number": tier_num,
+                        "tier_weight": tier_num,
+                        "tier_name": tier_name,
+                        "risk_level": item_risk_lvl,
+                        "risk_score": item_score,
+                        "callers_at_risk": callers_list,
+                        "factors": factors,
+                        "remediations": recs,
+                        "step_number": None,
+                        "dependencies": [],
+                        "required_tests": [],
+                    }
+
+                # Ingest DB upgrade tasks
+                for t in tasks:
+                    comp_key = t.component.lower()
+                    tier_num, tier_name, cat_val = resolve_tier_info(t.category)
+                    evidence_file = None
+                    evidence_callers: list[str] = []
+                    if isinstance(t.evidence, dict):
+                        evidence_file = t.evidence.get("file_path")
+                        evidence_callers = [str(c) for c in t.evidence.get("call_chain", [])]
+
+                    if comp_key in components_map:
+                        existing = components_map[comp_key]
+                        existing["step_number"] = t.step_number
+                        existing["dependencies"] = list(t.dependencies or [])
+                        existing["required_tests"] = list(t.required_tests or [])
+                        if t.risk_level and t.risk_level != "UNKNOWN":
+                            existing["risk_level"] = t.risk_level
+                        if not existing["file_path"] and evidence_file:
+                            existing["file_path"] = evidence_file
+                        if not existing["callers_at_risk"] and evidence_callers:
+                            existing["callers_at_risk"] = evidence_callers
+                        if t.reason and t.reason not in existing["factors"]:
+                            existing["factors"].append(t.reason)
+                    else:
+                        t_risk = t.risk_level or "LOW"
+                        t_score = 75.0 if t_risk == "HIGH" else (90.0 if t_risk == "CRITICAL" else (45.0 if t_risk == "MEDIUM" else 20.0))
+                        components_map[comp_key] = {
+                            "component": t.component,
+                            "file_path": evidence_file,
+                            "category": cat_val,
+                            "tier": cat_val,
+                            "tier_number": tier_num,
+                            "tier_weight": tier_num,
+                            "tier_name": tier_name,
+                            "risk_level": t_risk,
+                            "risk_score": t_score,
+                            "callers_at_risk": evidence_callers,
+                            "factors": [t.reason] if t.reason else [],
+                            "remediations": [f"Satisfy prerequisites: {', '.join(t.dependencies)}"] if t.dependencies else ["Review and validate component"],
+                            "step_number": t.step_number,
+                            "dependencies": list(t.dependencies or []),
+                            "required_tests": list(t.required_tests or []),
+                        }
+
+                all_components = list(components_map.values())
+
+                # Populate affected_entities and all callers_at_risk
+                impact_data["affected_entities"] = [c["component"] for c in all_components]
+                all_callers: list[str] = []
+                for c in all_components:
+                    for caller in c.get("callers_at_risk", []):
+                        if caller not in all_callers:
+                            all_callers.append(caller)
+                impact_data["callers_at_risk"] = all_callers
+                impact_data["components"] = all_components
+
+                # High-risk components: sort by risk severity, tier weight (Tier 1 API contracts first), and score
+                high_risk = [c for c in all_components if c["risk_level"] in ("HIGH", "CRITICAL") or c["risk_score"] >= 50.0]
+                high_risk.sort(key=lambda x: (
+                    0 if x["risk_level"] == "CRITICAL" else (1 if x["risk_level"] == "HIGH" else 2),
+                    x["tier_number"],
+                    -x["risk_score"]
+                ))
+                impact_data["high_risk_components"] = high_risk
+
+                # Filter for specific symbol if requested
+                if symbol_or_component:
+                    sym_l = symbol_or_component.lower().strip()
+                    git_or_proj = {"head", "main", "master", "python-proj", "sample_repo", "repo", "project", "all", "*"}
+                    if sym_l not in git_or_proj:
+                        matched = None
+                        for comp in all_components:
+                            if sym_l == comp["component"].lower() or sym_l in comp["component"].lower():
+                                matched = comp
                                 break
+                        if matched:
+                            impact_data["target_component"] = matched["component"]
+                            impact_data["risk_level"] = matched["risk_level"]
+                            impact_data["risk_score"] = float(matched["risk_score"])
+                            impact_data["category"] = matched["category"]
+                            impact_data["tier"] = matched["tier"]
+                            impact_data["tier_number"] = matched["tier_number"]
+                            impact_data["tier_weight"] = matched["tier_weight"]
+                            impact_data["tier_name"] = matched["tier_name"]
+                            impact_data["factors"] = matched["factors"]
+                            impact_data["callers_at_risk"] = matched["callers_at_risk"][:5]
+                            impact_data["remediations"] = matched["remediations"]
+                            impact_data["file_path"] = matched["file_path"]
+                            impact_data["step_number"] = matched["step_number"]
+                            impact_data["dependencies"] = matched["dependencies"]
+                            impact_data["required_tests"] = matched["required_tests"]
         except Exception as exc:
             logger.warning("get_impact_and_risk failed", error=str(exc))
 
         return impact_data
+
+    get_risk_analysis = get_impact_and_risk
 
     async def get_upgrade_plan_tasks(
         self, task_or_component: str | None, repository_id: UUID
@@ -582,7 +779,7 @@ class AssistantTools:
                             "step_number": t.step_number,
                             "component": t.component,
                             "tier": t.category,
-                            "dependencies": [str(d) for d in (t.dependencies or [])],
+                            "dependencies": list(t.dependencies or []),
                             "status": t.status,
                             "reason": t.reason,
                         })
@@ -643,12 +840,12 @@ class AssistantTools:
     # Internal Helpers
     # -----------------------------------------------------------------------
 
-    async def _load_artifact(self, analysis_run_id: UUID) -> Any | None:
+    async def _load_artifact(self, analysis_run_id: UUID) -> RepositoryAnalysis | dict[str, Any] | None:
         """Load RepositoryAnalysis domain object from artifact storage."""
         if not self._artifact_store:
             return None
         try:
-            data = None
+            data: Any = None
             if hasattr(self._artifact_store, "read_artifact"):
                 data = self._artifact_store.read_artifact(analysis_run_id)
             elif hasattr(self._artifact_store, "load"):
@@ -658,14 +855,16 @@ class AssistantTools:
 
             if data is None:
                 return None
-            if isinstance(data, RepositoryAnalysis) or hasattr(data, "classes"):
+            if isinstance(data, RepositoryAnalysis):
                 return data
             if isinstance(data, dict):
                 try:
                     return RepositoryAnalysis.from_dict(data)
                 except Exception:
-                    return data
-            return data
+                    return cast(dict[str, Any], data)
+            if hasattr(data, "classes"):
+                return cast(RepositoryAnalysis, data)
+            return None
         except Exception as exc:
             logger.debug("Could not read analysis artifact", error=str(exc), analysis_run_id=str(analysis_run_id))
         return None

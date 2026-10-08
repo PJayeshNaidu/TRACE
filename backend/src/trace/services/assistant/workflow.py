@@ -15,9 +15,11 @@ from trace.schemas.assistant import ChatMessage, EvidenceSource
 from trace.services.assistant.retrieval import CandidateSymbolExtractor
 from trace.services.assistant.state import AssistantState
 from trace.services.assistant.synthesis import (
+    ASSISTANT_SYSTEM_PROMPT,
     AssistantPromptBuilder,
     AssistantSynthesisService,
     DeterministicFallbackGenerator,
+    clean_llm_response,
 )
 from trace.services.assistant.tools import AssistantTools, resolve_target_run
 
@@ -249,6 +251,8 @@ def create_select_tools_node():
                     calls.append({"tool": "get_impact_and_risk", "args": {"symbol_or_component": None, "analysis_run_id": run_id}})
                     if any(w in state.question.lower() for w in ("test", "coverage", "overview")):
                         calls.append({"tool": "get_repository_overview", "args": {"analysis_run_id": run_id}})
+                    if any(w in state.question.lower() for w in ("plan", "task", "upgrade", "sequence", "order", "first")) and repo_id:
+                        calls.append({"tool": "get_upgrade_plan_tasks", "args": {"task_or_component": None, "repository_id": repo_id}})
                 if "IMPACT_DEPENDENCY" in intents and run_id:
                     calls.append({"tool": "get_graph_neighborhood", "args": {"symbol": None, "direction": "both", "depth": 1, "analysis_run_id": run_id}})
                     calls.append({"tool": "get_repository_overview", "args": {"analysis_run_id": run_id}})
@@ -397,7 +401,7 @@ def create_execute_tools_node(tools: AssistantTools):
                         )
                     )
 
-            elif name == "get_impact_and_risk":
+            elif name in ("get_impact_and_risk", "get_risk_analysis"):
                 new_evidence.append(payload)
                 new_sources.append(
                     EvidenceSource(
@@ -623,17 +627,12 @@ def create_synthesize_node(synthesis_svc: AssistantSynthesisService):
             f"Available Project Context:\n"
             f"```json\n{context_payload}\n```\n\n"
             "Provide a direct, helpful, and natural response strictly grounded in the context above. "
-            "Do not fabricate non-existent relationships. Do not output your thinking process."
+            "Explicitly identify specific components, architectural tiers/weights, risk scores, and callers at risk. "
+            "Do NOT output your thinking process, planning notes, drafts, or internal monologue. Output ONLY the final user-facing answer."
         )
 
         messages = [
-            {"role": "system", "content": (
-                "You are TRACE Code Intelligence Assistant. Your goal is to explain codebase dependencies, risks, and plans.\n"
-                "RULES:\n"
-                "1. Answer strictly based on the provided evidence.\n"
-                "2. If evidence for a specific assertion is missing, state it clearly.\n"
-                "3. NEVER mention 'JSON' or internal schema structures."
-            )},
+            {"role": "system", "content": ASSISTANT_SYSTEM_PROMPT},
             {"role": "user", "content": user_prompt},
         ]
 
@@ -656,15 +655,16 @@ def create_synthesize_node(synthesis_svc: AssistantSynthesisService):
             "model": model,
             "messages": messages,
             "temperature": 0.2,
-            "max_tokens": 1024,
+            "max_tokens": 2048,
         }
 
         try:
             answer = await synthesis_svc._call_openrouter_with_retries(url, headers, payload)
             if answer and answer.strip():
+                cleaned_answer = clean_llm_response(answer.strip())
                 status = "DETERMINISTIC_GROUNDED" if len(state.sources) >= 1 else "PARTIAL_EVIDENCE"
                 return {
-                    "final_answer": answer.strip(),
+                    "final_answer": cleaned_answer if cleaned_answer else answer.strip(),
                     "grounding_status": status,
                     "model_used": model,
                 }
@@ -685,6 +685,7 @@ def create_synthesize_node(synthesis_svc: AssistantSynthesisService):
 def _format_deterministic_evidence(state: AssistantState) -> str:
     """Format raw evidence into readable markdown tables and checklists when offline."""
     sections: list[str] = []
+    q_l = state.question.lower()
 
     if state.target_symbols and state.target_type == "CODE_SYMBOL":
         sections.append(f"### 🎯 Target Entities\n- **Symbols**: {', '.join(f'`{s}`' for s in state.target_symbols)}")
@@ -708,7 +709,7 @@ def _format_deterministic_evidence(state: AssistantState) -> str:
         if entry_pts:
             lines.append(f"- **Entry Points / Routes**: {', '.join(f'`{ep}`' for ep in entry_pts[:4])}")
 
-        if any(p in state.question.lower() for p in ("can i add", "can we add", "add to this codebase")):
+        if any(p in q_l for p in ("can i add", "can we add", "add to this codebase")):
             lines.append(
                 "\n**Feasibility Assessment**: You can introduce new functionality to this codebase. "
                 "Review the architectural entry points above and add new service modules conforming to the existing structure."
@@ -742,16 +743,121 @@ def _format_deterministic_evidence(state: AssistantState) -> str:
     # Risk
     risk_items = [e for e in state.raw_evidence if e.get("type") == "risk" or "risk_level" in e]
     if risk_items:
-        lines = ["### ⚠️ Assessed Risk Breakdown"]
         for r in risk_items[:3]:
-            comp_label = f" for `{r.get('target_component')}`" if r.get("target_component") else ""
-            lines.append(f"- Level **{r.get('risk_level')}**{comp_label} (Score: `{r.get('risk_score', 0):.1f}`)")
-            for f in r.get("factors", [])[:5]:
-                lines.append(f"  - *Factor*: {f}")
-            if r.get("remediations"):
-                for rem in r.get("remediations", [])[:2]:
-                    lines.append(f"  - *Remediation*: {rem}")
-        sections.append("\n".join(lines))
+            # Case 1: Specific target component
+            if r.get("target_component"):
+                comp_name = r.get("target_component")
+                loc = f" *(in `{r.get('file_path')}`)*" if r.get("file_path") else ""
+                lines = [f"### ⚠️ Risk Analysis for `{comp_name}`"]
+                lines.append(f"- **Component**: `{comp_name}`{loc}")
+                if r.get("tier_name") or r.get("tier"):
+                    t_name = r.get("tier_name", r.get("tier"))
+                    t_num = r.get("tier_number", r.get("tier_weight", 1))
+                    lines.append(f"- **Architectural Tier**: Tier {t_num} - {t_name} (Weight: {t_num})")
+                lines.append(f"- **Assessed Risk Level**: **{r.get('risk_level', 'UNKNOWN')}** (Score: `{r.get('risk_score', 0):.1f}`)")
+                if r.get("factors"):
+                    lines.append("- **Contributing Risk Factors**:")
+                    for f in r.get("factors", [])[:5]:
+                        lines.append(f"  - {f}")
+                if r.get("callers_at_risk"):
+                    callers_fmt = ", ".join(f"`{c}`" for c in r.get("callers_at_risk", [])[:5])
+                    lines.append(f"- **Callers at Risk**: {callers_fmt}")
+                if r.get("remediations"):
+                    lines.append(f"- **Recommended Remediation**: {'; '.join(r.get('remediations', [])[:3])}")
+                if r.get("step_number") is not None:
+                    deps_info = f" (Prerequisites: {', '.join(r.get('dependencies', []))})" if r.get("dependencies") else " (Root Task)"
+                    lines.append(f"- **Upgrade Plan Placement**: Step {r.get('step_number')}{deps_info}")
+                sections.append("\n".join(lines))
+
+            # Case 2: Repository-level risk & high-risk components breakdown
+            else:
+                high_risk_comps = r.get("high_risk_components", [])
+                if not high_risk_comps and r.get("components"):
+                    high_risk_comps = [c for c in r.get("components", []) if c.get("risk_level") in ("HIGH", "CRITICAL") or c.get("risk_score", 0) >= 50.0]
+
+                is_component_risk_query = any(w in q_l for w in ("highest risk", "which component", "high risk component", "what component", "what are the high"))
+                lines = []
+
+                if is_component_risk_query and high_risk_comps:
+                    lines.append("Based on the risk analysis, the highest-risk components are:\n")
+                    for comp in high_risk_comps[:5]:
+                        c_name = comp.get("component") or comp.get("name", "Unknown Component")
+                        c_loc = f" *(in `{comp.get('file_path')}`)*" if comp.get("file_path") else ""
+                        t_num = comp.get("tier_number", comp.get("tier_weight", 1))
+                        t_name = comp.get("tier_name", comp.get("tier", "Core Logic"))
+                        c_score = comp.get("risk_score", 0.0)
+                        c_level = comp.get("risk_level", "HIGH")
+
+                        lines.append(f"- **`{c_name}`**{c_loc}: Level **{c_level}** (Score: `{c_score:.1f}`) | **Tier**: Tier {t_num} - {t_name} (Weight: {t_num})")
+                        if comp.get("factors"):
+                            lines.append(f"  - *Risk Factors*: {'; '.join(comp.get('factors', [])[:3])}")
+                        if comp.get("callers_at_risk"):
+                            callers_str = ", ".join(f"`{c}`" for c in comp.get("callers_at_risk", [])[:4])
+                            lines.append(f"  - *Callers at Risk*: {callers_str}")
+                        if comp.get("remediations"):
+                            lines.append(f"  - *Remediation*: {'; '.join(comp.get('remediations', [])[:2])}")
+                        if comp.get("step_number") is not None:
+                            lines.append(f"  - *Upgrade Task*: Step {comp.get('step_number')}")
+
+                    lines.append(f"\n*Repository Risk Context*: Overall repository-level risk is Level **{r.get('risk_level', 'UNKNOWN')}** (Score: `{r.get('risk_score', 0):.1f}`).")
+                    if r.get("factors"):
+                        for f in r.get("factors", [])[:2]:
+                            lines.append(f"  - *Repository Factor*: {f}")
+                else:
+                    lines.append("### ⚠️ Repository Risk Overview")
+                    lines.append(f"- **Overall Risk Rating**: Level **{r.get('risk_level', 'UNKNOWN')}** (Score: `{r.get('risk_score', 0):.1f}`)")
+                    if r.get("factors"):
+                        for f in r.get("factors", [])[:3]:
+                            lines.append(f"  - *Repository Metric*: {f}")
+                    if r.get("remediations"):
+                        for rem in r.get("remediations", [])[:2]:
+                            lines.append(f"  - *Remediation Strategy*: {rem}")
+
+                    if high_risk_comps:
+                        lines.append("\n### 🎯 High-Risk Components & Impact Evidence")
+                        for comp in high_risk_comps[:5]:
+                            c_name = comp.get("component") or comp.get("name", "Unknown Component")
+                            c_loc = f" *(in `{comp.get('file_path')}`)*" if comp.get("file_path") else ""
+                            t_num = comp.get("tier_number", comp.get("tier_weight", 1))
+                            t_name = comp.get("tier_name", comp.get("tier", "Core Logic"))
+                            c_score = comp.get("risk_score", 0.0)
+                            c_level = comp.get("risk_level", "HIGH")
+
+                            lines.append(f"- **`{c_name}`**{c_loc}:")
+                            lines.append(f"  - **Risk**: Level **{c_level}** (Score: `{c_score:.1f}`) | **Tier**: Tier {t_num} - {t_name} (Weight: {t_num})")
+                            if comp.get("factors"):
+                                lines.append(f"  - *Risk Factors*: {'; '.join(comp.get('factors', [])[:3])}")
+                            if comp.get("callers_at_risk"):
+                                callers_str = ", ".join(f"`{c}`" for c in comp.get("callers_at_risk", [])[:4])
+                                lines.append(f"  - *Callers at Risk*: {callers_str}")
+                            if comp.get("remediations"):
+                                lines.append(f"  - *Remediation*: {'; '.join(comp.get('remediations', [])[:2])}")
+                            if comp.get("step_number") is not None:
+                                lines.append(f"  - *Upgrade Task*: Step {comp.get('step_number')}")
+                    elif r.get("affected_entities"):
+                        lines.append("\n### 🎯 Identified Affected Entities")
+                        for ent in r.get("affected_entities", [])[:6]:
+                            lines.append(f"- `{ent}`")
+                sections.append("\n".join(lines))
+
+        # Test coverage specific section if queried
+        if "coverage" in q_l or "low test" in q_l or "untested" in q_l:
+            cov_lines = ["### 🧪 Test Coverage & Validation for Affected Components"]
+            found_test_info = False
+            for r in risk_items:
+                for comp in (r.get("high_risk_components", []) or r.get("components", [])):
+                    c_name = comp.get("component") or comp.get("name")
+                    req_t = comp.get("required_tests", [])
+                    if c_name:
+                        t_str = ", ".join(f"`{t}`" for t in req_t) if req_t else "No dedicated unit tests identified (Validation required)"
+                        cov_lines.append(f"- **`{c_name}`**: Required validation suites: {t_str}")
+                        found_test_info = True
+            if not found_test_info:
+                cov_lines.append("- TRACE does not currently have line-level test execution coverage instrumentation for this repository snapshot.")
+                cov_lines.append("- Validation should prioritize the affected components and regression tests identified above.")
+            else:
+                cov_lines.append("\n*(Note: TRACE does not currently have line-level execution percentage coverage recorded for this repository snapshot; validation requirements are based on the required test suites identified above.)*")
+            sections.append("\n".join(cov_lines))
 
     # Plan
     plan_items = [e for e in state.raw_evidence if e.get("type") == "plan"]
@@ -795,6 +901,24 @@ def _format_deterministic_evidence(state: AssistantState) -> str:
                     deps = f" (Depends on: {', '.join(p.get('dependencies', []))})" if p.get("dependencies") else " (Root Task)"
                     lines.append(f"- **{p.get('task_id')} [Step {p.get('step_number')}]**: `{p.get('component')}` [{p.get('tier')}]{deps}")
                 sections.append("\n".join(lines))
+        elif "first" in q_l or "which upgrade task" in q_l or "which task" in q_l or "execute first" in q_l:
+            first_tasks = [p for p in plan_items if not p.get("dependencies") or p.get("step_number") == 1]
+            if not first_tasks:
+                first_tasks = plan_items[:2]
+            plan_lines = ["### 📋 Priority Upgrade Execution Order"]
+            plan_lines.append("**Initial Tasks to Execute First**:")
+            for p in first_tasks:
+                plan_lines.append(
+                    f"- **{p.get('task_id')} [Step {p.get('step_number')}]**: `{p.get('component')}` [{p.get('tier')}] (Root / Prerequisite)\n"
+                    f"  - *Ordering Rationale*: {p.get('reason') or 'Foundational contract/logic that must stabilize before downstream dependents.'}"
+                )
+            remaining_tasks = [p for p in plan_items if p not in first_tasks]
+            if remaining_tasks:
+                plan_lines.append("\n**Subsequent Dependent Tasks**:")
+                for p in remaining_tasks[:4]:
+                    deps = f" (Depends on: {', '.join(p.get('dependencies', []))})" if p.get("dependencies") else ""
+                    plan_lines.append(f"- **{p.get('task_id')} [Step {p.get('step_number')}]**: `{p.get('component')}` [{p.get('tier')}]{deps}")
+            sections.append("\n".join(plan_lines))
         else:
             lines = ["### 📋 Upgrade Plan Sequence"]
             for p in plan_items[:5]:
@@ -828,7 +952,9 @@ def _format_deterministic_evidence(state: AssistantState) -> str:
 
 def create_assemble_node():
     async def assemble_response(state: AssistantState) -> dict[str, Any]:
+        q_lower = state.question.strip().lower()
         followups = list(state.suggested_followups)
+
         if not followups:
             git_or_project_terms = {
                 "head", "main", "master", "origin", "trunk", "branch", "commit",
@@ -842,9 +968,22 @@ def create_assemble_node():
             if valid_symbols and state.target_type in ("CODE_SYMBOL", "NONE"):
                 sym = valid_symbols[0]
                 followups = [
+                    f"Why is {sym} high risk?",
                     f"Show all callers of {sym}",
-                    f"What is the risk score of {sym}?",
                     f"Show AST signature and parameters for {sym}",
+                ]
+            elif "RISK_EVALUATION" in state.intents or "highest risk" in q_lower or "high risk" in q_lower:
+                followups = [
+                    "Why are these components classified as high risk?",
+                    "Which upgrade tasks should execute first?",
+                    "Which affected components have low test coverage?",
+                    "Show repository architectural overview",
+                ]
+            elif "PLAN_SEQUENCE" in state.intents or "first" in q_lower:
+                followups = [
+                    "What are the highest risk components?",
+                    "Show all callers of prerequisite tasks",
+                    "Show repository architectural overview",
                 ]
             else:
                 followups = [
@@ -853,7 +992,15 @@ def create_assemble_node():
                     "Show repository architectural overview",
                 ]
 
-        return {"suggested_followups": followups[:4]}
+        # Filter out follow-ups that duplicate the user's current question
+        filtered: list[str] = []
+        for fu in followups:
+            fu_clean = fu.strip().lower().rstrip("?").strip()
+            q_clean = q_lower.rstrip("?").strip()
+            if fu_clean and fu_clean != q_clean and fu not in filtered:
+                filtered.append(fu)
+
+        return {"suggested_followups": filtered[:4]}
 
     return assemble_response
 

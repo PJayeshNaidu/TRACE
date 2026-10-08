@@ -31,17 +31,107 @@ logger = structlog.get_logger(__name__)
 
 ASSISTANT_SYSTEM_PROMPT = (
     "You are the TRACE Code Intelligence Assistant, an expert software architecture peer. "
-    "Your goal is to guide the user by explaining codebase dependencies, risks, and upgrade plans.\n\n"
-    "CORE RULES:\n"
-    "1. Be helpful and natural. NEVER mention 'JSON', 'provided evidence', or internal schemas.\n"
-    "2. If repository context is provided, use it strictly to ground your answer about specific symbols.\n"
-    "3. If evidence is missing for a requested symbol, explicitly state that no static analysis or graph records were found in the active run. DO NOT invent code dependencies or parameters.\n"
-    "4. DO NOT output internal thinking processes, scratchpads, or meta-commentary."
+    "Your goal is to answer questions about codebase dependencies, architectural risks, and upgrade plans.\n\n"
+    "CRITICAL OUTPUT RULES:\n"
+    "1. Output ONLY the final user-facing response directly. NEVER output any chain-of-thought, thinking processes, planning notes, checklists, drafts, internal monologues (e.g. 'I will...', 'Check rules', 'Draft:'), or rule recitations.\n"
+    "2. Be concise, direct, and helpful. Provide a direct, helpful, and natural response answering the question immediately.\n"
+    "3. Ground all answers strictly in the provided context. Explicitly name the actual components/symbols, their architectural tiers/weights (e.g. Tier 2 - CORE_LOGIC), risk levels/scores, and callers at risk.\n"
+    "4. Clearly distinguish between aggregate repository-level risk metrics and individual component risk scores.\n"
+    "5. Only describe caller and dependency relationships that are explicitly supported by the evidence. Do not invent non-existent relationships.\n"
+    "6. If evidence is missing for a requested symbol, explicitly state that no static analysis or graph records were found in the active run.\n"
+    "7. NEVER mention 'JSON', 'provided context', 'system prompt', or internal schemas.\n"
+    "8. Ensure all sentences and Markdown spans are complete and properly closed."
 )
 
 DEFAULT_MODEL = "meta-llama/llama-3.3-70b-instruct:free"
 OFFLINE_FALLBACK_MODEL = "offline-deterministic-fallback"
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
+
+
+# ---------------------------------------------------------------------------
+# LLM Response Sanitizer
+# ---------------------------------------------------------------------------
+
+
+def clean_llm_response(text: str) -> str:
+    """Scrub chain-of-thought, internal planning notes, draft markers, and repair truncated markdown spans."""
+    if not text:
+        return ""
+
+    cleaned = text.strip()
+
+    # 1. Remove XML-style thinking tags (<think>...</think>, <thought>...</thought>, etc.)
+    cleaned = re.sub(r"(?is)<think>.*?</think>", "", cleaned)
+    cleaned = re.sub(r"(?is)<thought>.*?</thought>", "", cleaned)
+    cleaned = re.sub(r"(?is)<scratchpad>.*?</scratchpad>", "", cleaned)
+
+    # 2. Check for transition markers from planning/drafting to final answer
+    marker_pattern = r"(?i)(?:^|\n)\s*(?:#{1,6}\s*)?(?:draft(?:\s+response|\s+answer)?|final\s+answer|final\s+response|formulate\s+response|formulate\s+answer|here's\s+(?:the\s+)?final\s+answer|actual\s+response)\s*:\s*"
+    parts = re.split(marker_pattern, cleaned)
+    if len(parts) > 1:
+        cleaned = parts[-1].strip()
+
+    # 3. Strip explicit thinking process blocks if remaining
+    if "thinking process:" in cleaned.lower() or "analyze user input:" in cleaned.lower():
+        cleaned = re.sub(r"(?is)^.*?(?:here's a thinking process|analyze user input):.*?(?=\n\s*#{1,6}\s+|\n\s*[A-Z][a-zA-Z\s]{2,}:|\n\s*`|\Z)", "", cleaned).strip()
+
+    # 4. Strip leading internal monologue lines if model leaked self-talk before the answer
+    lines = cleaned.splitlines()
+    start_idx = 0
+    in_planning_block = False
+
+    planning_start_patterns = (
+        r"(?i)^\s*(?:I'll\b|I will\b|Let's\b|Let me\b)",
+        r"(?i)^\s*(?:Check\s+rules|Checking\s+rules|Review\s+rules|Rule\s+check)\b",
+        r"(?i)^\s*(?:Structure\s+response|Response\s+structure|Formatting\s+plan)\b",
+        r"(?i)^\s*(?:Thinking\s+process|Here's\s+a\s+thinking\s+process|Analyze\s+user\s+input|Reasoning)\b",
+        r"(?i)^\s*(?:Plan|Notes|Internal\s+notes)\s*:\s*$",
+        r"(?i)^\s*\"\s*(?:distinguish|explicitly|if evidence|never mention|output only|be helpful|answer strictly|rules?:)",
+        r"(?i)^\s*[-*]\s*(?:I'll\b|I will\b|Check\b|Rule\b|Draft\b|Note\b|Step\b|\"\w+)",
+    )
+
+    for i, line in enumerate(lines):
+        line_s = line.strip()
+        if not line_s or line_s in ("**", "---", "***"):
+            continue
+        if any(re.search(p, line_s) for p in planning_start_patterns):
+            in_planning_block = True
+            continue
+        if in_planning_block:
+            if re.match(r"^(?:#{1,6}\s+|Based on|The highest|In this codebase|According to|Here are|- `|\d+\.\s+`|Repository-level|\*Repository)", line_s, re.IGNORECASE):
+                start_idx = i
+                break
+            continue
+        else:
+            start_idx = i
+            break
+
+    if in_planning_block and start_idx > 0:
+        cleaned = "\n".join(lines[start_idx:]).strip()
+
+    # 5. Remove any remaining prefix like "Draft: " or "Final Answer: " on first line
+    cleaned = re.sub(r"(?i)^(?:Draft|Final Answer|Answer|Response):\s*", "", cleaned).strip()
+
+    # 6. Repair markdown code spans and backtick mismatches
+    fence_count = len(re.findall(r"```", cleaned))
+    if fence_count % 2 != 0:
+        cleaned += "\n```"
+
+    cleaned_lines: list[str] = []
+    in_fence = False
+    for line in cleaned.splitlines():
+        if line.strip().startswith("```"):
+            in_fence = not in_fence
+            cleaned_lines.append(line)
+            continue
+        if not in_fence:
+            bt_count = len(re.findall(r"(?<!\\)`", line))
+            if bt_count % 2 != 0:
+                line = line.rstrip() + "`"
+        cleaned_lines.append(line)
+
+    cleaned = "\n".join(cleaned_lines).strip()
+    return cleaned
 
 
 # ---------------------------------------------------------------------------
@@ -61,7 +151,8 @@ class AssistantPromptBuilder:
             f"User Question: {question}\n\n"
             f"Available Project Context:\n"
             f"```json\n{context_json}\n```\n\n"
-            "Provide a direct, helpful, and natural response. Do not output your thinking process."
+            "Provide a direct, helpful, and natural response. "
+            "Do NOT output your thinking process, planning notes, or drafts. Output ONLY the final user-facing answer."
         )
         return prompt
 
@@ -137,9 +228,12 @@ class DeterministicFallbackGenerator:
             for r in bundle.risk_items:
                 factors_str = ", ".join(r.factors) if r.factors else "None reported"
                 recs_str = "; ".join(r.recommendations) if r.recommendations else "No specific remediation"
+                loc = f" *(in `{r.file_path}`)*" if r.file_path else ""
+                tier_str = f" | Tier {r.tier_number} - {r.tier_name} (Weight: {r.tier_number})" if r.tier_name and r.tier_number else (f" | [{r.tier}]" if r.tier else "")
+                callers_str = f"\n  - *Callers at Risk*: {', '.join(f'`{c}`' for c in r.callers_at_risk)}" if r.callers_at_risk else ""
                 risk_lines.append(
-                    f"- **`{r.symbol_name}`**: Level **{r.risk_level}** (Score: `{r.risk_score:.1f}`)\n"
-                    f"  - *Contributing Factors*: {factors_str}\n"
+                    f"- **`{r.symbol_name}`**{loc}: Level **{r.risk_level}** (Score: `{r.risk_score:.1f}`){tier_str}\n"
+                    f"  - *Contributing Factors*: {factors_str}{callers_str}\n"
                     f"  - *Recommendations*: {recs_str}"
                 )
             sections.append("\n".join(risk_lines))
@@ -291,7 +385,7 @@ class AssistantSynthesisService:
             "model": model,
             "messages": messages,
             "temperature": 0.2,
-            "max_tokens": 1024,
+            "max_tokens": 2048,
         }
 
         # Candidate models to try if the primary model is deprecated or unavailable on OpenRouter
@@ -337,20 +431,8 @@ class AssistantSynthesisService:
                 if choices:
                     output_text = choices[0].get("message", {}).get("content", "")
                     if output_text:
-                        # Aggressive scrub of thinking processes
-                        import re
-                        output_text = re.sub(r"(?is)<think>.*?</think>", "", output_text)
-
-                        # If the model leaks a numbered thought process, split and take the last part
-                        if "Here's a thinking process:" in output_text or "Analyze User Input:" in output_text:
-                            parts = re.split(r"(?i)(?:draft response|formulate response|final answer):", output_text)
-                            if len(parts) > 1:
-                                output_text = parts[-1]
-                            else:
-                                # Fallback regex removal
-                                output_text = re.sub(r"(?is)^.*?Here's a thinking process:.*?(?=\n\s*\n[A-Z#*]|\Z)", "", output_text)
-
-                        return output_text.strip()
+                        cleaned = clean_llm_response(output_text)
+                        return cleaned if cleaned else output_text.strip()
                 return None
 
             if resp.status_code in (429, 500, 502, 503, 504):

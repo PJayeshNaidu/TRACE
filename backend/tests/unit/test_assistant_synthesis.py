@@ -305,3 +305,44 @@ async def test_openrouter_sanitizes_thinking_process_split(sample_bundle: Compac
     assert "Final Answer:" not in answer
     assert "`auth_handler` directly depends on `auth_service.login`." in answer
 
+
+def test_clean_llm_response_planning_and_rules_scrub():
+    """Test clean_llm_response scrubs rule checking, planning notes, and drafts."""
+    raw_leaked_text = (
+        "Risk Evaluation\n\n"
+        "**\n\n"
+        "I'll state the highest risk components based on the evidence.\n"
+        "I'll name each component: main.py::calculate_tax, main.py::calculate_total, main.py::process_payment.\n"
+        "I'll mention their architectural tier: CORE_LOGIC (tier_weight: 2, tier_number: 2).\n"
+        "I'll give their risk scores: 75.0 each, risk_level: HIGH.\n\n"
+        "Check rules:\n\n"
+        '"distinguish aggregate repository risk metrics from individual high-risk components and upgrade ordering." - The aggregate has risk_score 55.0, level HIGH.\n'
+        '"Explicitly name the relevant components/symbols, their architectural tiers/weights, risk levels/scores, and callers at risk." - I\'ll do that.\n\n'
+        "Structure response:\n\n"
+        "List the three components with their details.\n"
+        "Keep it concise.\n\n"
+        "Draft: Based on the risk analysis, the highest-risk components are:\n\n"
+        "- `main.py::calculate_tax` (CORE_LOGIC, score 75.0, HIGH): Modified method signature. Directly impacts upstream caller `main.calculate_total`.\n"
+        "- `main.py::calculate_total` (CORE_LOGIC, score 75.0, HIGH): Modified method signature. Depends on `main.py::calculate_tax` and directly impacts upstream caller `main.process_payment"
+    )
+
+    from trace.services.assistant.synthesis import clean_llm_response
+
+    cleaned = clean_llm_response(raw_leaked_text)
+
+    # 1. No planning or rule traces
+    assert "I'll state" not in cleaned
+    assert "Check rules:" not in cleaned
+    assert "Structure response:" not in cleaned
+    assert "Draft:" not in cleaned
+
+    # 2. Contains the user-facing content
+    assert "Based on the risk analysis, the highest-risk components are:" in cleaned
+    assert "`main.py::calculate_tax`" in cleaned
+    assert "`main.py::calculate_total`" in cleaned
+
+    # 3. Unclosed backtick on `main.process_payment is repaired
+    assert "`main.process_payment`" in cleaned
+    assert cleaned.count("`") % 2 == 0
+
+

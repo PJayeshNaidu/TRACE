@@ -1,16 +1,16 @@
 {
   "schema_version": "1.0.0",
   "analysis_run": {
-    "analysis_run_id": "bd79d095-5467-45af-94d8-4f22f7d50a7b",
-    "repository_id": "13ba05db-f961-40e1-97cb-1322f80ce1ca",
+    "analysis_run_id": "c5b0a6e6-c8b1-44c1-93d5-80a666595906",
+    "repository_id": "0ff4ffac-06bb-4cf6-9357-97c9d4009967",
     "status": "COMPLETED",
-    "started_at": "2026-10-08T05:27:58.410372+00:00",
-    "completed_at": "2026-10-08T05:27:58.431544+00:00",
-    "duration_ms": 21.17,
+    "started_at": "2026-10-06T05:00:15.816050+00:00",
+    "completed_at": "2026-10-06T05:00:15.829396+00:00",
+    "duration_ms": 13.35,
     "analyzer_version": "0.1.0"
   },
   "repository": {
-    "repository_id": "13ba05db-f961-40e1-97cb-1322f80ce1ca",
+    "repository_id": "0ff4ffac-06bb-4cf6-9357-97c9d4009967",
     "name": "syntax_error_repo",
     "url": "C:\\Users\\TanishaKharbe\\TRACE\\backend\\tests\\fixtures\\syntax_error_repo",
     "root_path": "C:\\Users\\TanishaKharbe\\TRACE\\backend\\tests\\fixtures\\syntax_error_repo",
@@ -39,7 +39,7 @@
             "parent_commits": [],
             "message": "Commit 1234567",
             "author": "TRACE",
-            "timestamp": "2026-10-08T05:27:58.431544+00:00"
+            "timestamp": "2026-10-06T05:00:15.829396+00:00"
           }
         ]
       }

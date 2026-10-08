@@ -1806,13 +1806,37 @@ def format_assistant_intent_title(raw_intent: str) -> str:
 
 
 def clean_assistant_answer_text(text: str) -> str:
-    """Strip code line numbers like (line 11) or (lines 10-20) and stray emojis from answer."""
+    """Strip code line numbers, stray emojis, and reasoning remnants from assistant answers."""
     if not text:
         return ""
+    cleaned = text
+    # Strip <think>...</think>
+    cleaned = re.sub(r"(?is)<think>.*?</think>", "", cleaned)
+    # Strip transition markers if present
+    marker_pattern = r"(?i)(?:^|\n)\s*(?:###?\s*)?(?:draft(?:\s+response|\s+answer)?|final\s+answer|final\s+response|formulate\s+response|formulate\s+answer)\s*:\s*"
+    parts = re.split(marker_pattern, cleaned)
+    if len(parts) > 1:
+        cleaned = parts[-1].strip()
+
     # Strip (line 11), (line 17), (lines 10-20), (line: 11)
-    cleaned = re.sub(r'\s*\((?:lines?|line:?)\s+\d+(?:-\d+)?\)', '', text, flags=re.IGNORECASE)
+    cleaned = re.sub(r'\s*\((?:lines?|line:?)\s+\d+(?:-\d+)?\)', '', cleaned, flags=re.IGNORECASE)
     cleaned = cleaned.replace("🤖", "").replace("👤", "").replace("💡", "")
-    return cleaned
+
+    # Repair unclosed single backticks
+    cleaned_lines: list[str] = []
+    in_fence = False
+    for line in cleaned.splitlines():
+        if line.strip().startswith("```"):
+            in_fence = not in_fence
+            cleaned_lines.append(line)
+            continue
+        if not in_fence:
+            bt_count = len(re.findall(r"(?<!\\)`", line))
+            if bt_count % 2 != 0:
+                line = line.rstrip() + "`"
+        cleaned_lines.append(line)
+
+    return "\n".join(cleaned_lines).strip()
 
 
 def fetch_assistant_status(api_url: str) -> dict[str, Any]:

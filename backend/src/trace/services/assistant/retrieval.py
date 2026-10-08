@@ -52,13 +52,20 @@ class GraphNeighborEvidence:
 
 @dataclass(slots=True)
 class RiskItemEvidence:
-    """Risk evaluation entry extracted from F05/F06."""
+    """Risk evaluation entry extracted from F05/F06/F07."""
 
     symbol_name: str
     risk_level: str
     risk_score: float
     factors: list[str] = field(default_factory=list)
     recommendations: list[str] = field(default_factory=list)
+    file_path: str | None = None
+    tier: str | None = None
+    tier_number: int | None = None
+    tier_name: str | None = None
+    callers_at_risk: list[str] = field(default_factory=list)
+    step_number: int | None = None
+    dependencies: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -118,12 +125,17 @@ class CompactEvidenceBundle:
             "risk_items": [
                 {
                     "symbol": r.symbol_name,
+                    "file": r.file_path,
+                    "tier": r.tier,
+                    "tier_number": r.tier_number,
+                    "tier_name": r.tier_name,
                     "level": r.risk_level,
                     "score": r.risk_score,
                     "factors": r.factors[:3],
+                    "callers_at_risk": r.callers_at_risk[:5],
                     "recommendations": r.recommendations[:2],
                 }
-                for r in self.risk_items[:5]
+                for r in self.risk_items[:6]
             ],
             "plan_steps": [
                 {
@@ -585,13 +597,16 @@ class AssistantRetrievalService:
         candidates: list[str],
         repository_id: UUID | None,
     ) -> list[RiskItemEvidence]:
-        """Fetch F05/F06 risk assessment metrics for candidate symbols."""
+        """Fetch F05/F06/F07 risk assessment metrics for candidate symbols or overall repository."""
         if not repository_id:
             return []
+
+        from trace.services.assistant.tools import resolve_tier_info
 
         risk_items: list[RiskItemEvidence] = []
         try:
             async with self._db.session() as session:
+                # 1. Query ImpactAnalysisOrm
                 stmt = (
                     select(ImpactAnalysisOrm)
                     .where(ImpactAnalysisOrm.repository_id == repository_id)
@@ -624,21 +639,112 @@ class AssistantRetrievalService:
                     if imp.artifact_path and Path(imp.artifact_path).exists():
                         try:
                             raw_data = json.loads(Path(imp.artifact_path).read_text(encoding="utf-8"))
-                            for item in raw_data.get("affected_components", raw_data.get("affected_symbols", [])):
-                                sym_name = item.get("symbol_id") or item.get("qualified_name") or item.get("name", "")
-                                for c in candidates:
-                                    if c.lower() in sym_name.lower():
-                                        risk_items.append(
-                                            RiskItemEvidence(
-                                                symbol_name=sym_name,
-                                                risk_level=item.get("risk_level", imp.risk_level),
-                                                risk_score=float(item.get("risk_score", 50.0)),
-                                                factors=item.get("risk_factors", ["Downstream caller dependency"]),
-                                                recommendations=item.get("recommendations", []),
-                                            )
+                            detailed: list[dict[str, Any]] = []
+                            if "impact_analysis" in raw_data and isinstance(raw_data["impact_analysis"], dict):
+                                detailed = raw_data["impact_analysis"].get("detailed_impacts", [])
+                            elif "detailed_impacts" in raw_data:
+                                detailed = raw_data.get("detailed_impacts", [])
+                            elif "affected_components" in raw_data:
+                                detailed = raw_data.get("affected_components", [])
+                            elif "affected_symbols" in raw_data:
+                                detailed = raw_data.get("affected_symbols", [])
+
+                            for item in detailed:
+                                sym_name = item.get("entity") or item.get("symbol_id") or item.get("qualified_name") or item.get("name", "")
+                                if not sym_name:
+                                    continue
+                                file_p = item.get("file") or item.get("file_path")
+                                cat_hint = item.get("category") or item.get("entity_type")
+                                tier_num, tier_name, cat_val = resolve_tier_info(cat_hint)
+
+                                callers_raw = item.get("callers_at_risk", [])
+                                callers_list = [
+                                    c.get("qualified_name") or c.get("name") or str(c) if isinstance(c, dict) else str(c)
+                                    for c in callers_raw
+                                ]
+
+                                item_risk_lvl = item.get("risk_level", imp.risk_level)
+                                item_score = float(item.get("risk_score", 75.0 if item_risk_lvl == "HIGH" else (90.0 if item_risk_lvl == "CRITICAL" else 40.0)))
+                                factors = item.get("risk_factors") or ([item.get("change_summary")] if item.get("change_summary") else []) or ([item.get("justification")] if item.get("justification") else ["Downstream caller dependency"])
+                                recs = item.get("recommendations") or ([item.get("remediation_guidance")] if item.get("remediation_guidance") else [])
+
+                                matched = False
+                                if not candidates:
+                                    matched = True
+                                else:
+                                    for c in candidates:
+                                        if c.lower() in sym_name.lower() or (file_p and c.lower() in file_p.lower()):
+                                            matched = True
+                                            break
+
+                                if matched:
+                                    risk_items.append(
+                                        RiskItemEvidence(
+                                            symbol_name=sym_name,
+                                            risk_level=item_risk_lvl,
+                                            risk_score=item_score,
+                                            factors=factors,
+                                            recommendations=recs,
+                                            file_path=file_p,
+                                            tier=cat_val,
+                                            tier_number=tier_num,
+                                            tier_name=tier_name,
+                                            callers_at_risk=callers_list,
                                         )
+                                    )
                         except Exception as exc:
                             logger.debug("Could not read impact analysis JSON file", error=str(exc))
+
+                # 2. Query UpgradePlan and UpgradeTasks for task-level risks
+                plan_stmt = (
+                    select(UpgradePlanOrm)
+                    .where(UpgradePlanOrm.repository_id == repository_id)
+                    .order_by(desc(UpgradePlanOrm.created_at))
+                    .limit(1)
+                )
+                plan = (await session.execute(plan_stmt)).scalar_one_or_none()
+                if plan:
+                    tasks_stmt = (
+                        select(UpgradeTaskOrm)
+                        .where(UpgradeTaskOrm.plan_id == plan.id)
+                        .order_by(UpgradeTaskOrm.step_number)
+                    )
+                    tasks = (await session.execute(tasks_stmt)).scalars().all()
+                    for t in tasks:
+                        t_comp = t.component
+                        t_cat = t.category
+                        t_risk = t.risk_level or "LOW"
+                        tier_num, tier_name, cat_val = resolve_tier_info(t_cat)
+                        t_score = 75.0 if t_risk == "HIGH" else (90.0 if t_risk == "CRITICAL" else (45.0 if t_risk == "MEDIUM" else 20.0))
+                        file_p = t.evidence.get("file_path") if isinstance(t.evidence, dict) else None
+                        callers_list: list[str] = [str(c) for c in t.evidence.get("call_chain", [])] if isinstance(t.evidence, dict) else []
+
+                        matched = False
+                        if not candidates:
+                            matched = t_risk in ("HIGH", "CRITICAL") or t.step_number <= 3
+                        else:
+                            for c in candidates:
+                                if c.lower() in t_comp.lower() or (file_p and c.lower() in file_p.lower()):
+                                    matched = True
+                                    break
+
+                        if matched:
+                            risk_items.append(
+                                RiskItemEvidence(
+                                    symbol_name=t_comp,
+                                    risk_level=t_risk,
+                                    risk_score=t_score,
+                                    factors=[t.reason] if t.reason else [],
+                                    recommendations=[f"Satisfy prerequisites: {', '.join(t.dependencies)}"] if t.dependencies else ["Review and validate component"],
+                                    file_path=file_p,
+                                    tier=cat_val,
+                                    tier_number=tier_num,
+                                    tier_name=tier_name,
+                                    callers_at_risk=callers_list,
+                                    step_number=t.step_number,
+                                    dependencies=list(t.dependencies or []),
+                                )
+                            )
         except Exception as exc:
             logger.debug("Risk item retrieval skipped or failed", error=str(exc))
 
@@ -650,7 +756,14 @@ class AssistantRetrievalService:
                 seen_syms.add(r.symbol_name)
                 unique_risks.append(r)
 
-        return unique_risks[:5]
+        # Sort: CRITICAL/HIGH risk first, then by tier weight
+        unique_risks.sort(key=lambda x: (
+            0 if x.risk_level == "CRITICAL" else (1 if x.risk_level == "HIGH" else 2),
+            x.tier_number or 99,
+            -x.risk_score
+        ))
+
+        return unique_risks[:8]
 
     async def _retrieve_plan_steps(
         self,
@@ -705,7 +818,7 @@ class AssistantRetrievalService:
                                     step_number=t.step_number,
                                     tier=t.category,
                                     component=t.component,
-                                    dependencies=[str(d) for d in t.dependencies],
+                                    dependencies=list(t.dependencies or []),
                                     status=t.status,
                                     reason=t.reason,
                                 )
