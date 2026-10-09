@@ -3069,29 +3069,6 @@ def run_app() -> None:
                     else:
                         st.info("No code symbols modified in this changeset.")
 
-                    # Render graphical flowchart in an expander if available
-                    dep_graph = active_impact.get("dependency_graph", {})
-                    mermaid_code = dep_graph.get("mermaid", "")
-                    if mermaid_code:
-                        with st.expander("View Graphical Call Graph Flowchart (Mermaid)", expanded=False):
-                            mermaid_html = f"""
-                            <!DOCTYPE html>
-                            <html>
-                            <head>
-                              <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-                              <script>mermaid.initialize({{startOnLoad: true, theme: '{'dark' if is_dark_mode else 'default'}'}});</script>
-                            </head>
-                            <body style="background: transparent; margin: 0; padding: 10px; color: {'#f8fafc' if is_dark_mode else '#09090b'};">
-                              <div class="mermaid">
-                                {mermaid_code}
-                              </div>
-                            </body>
-                            </html>
-                            """
-                            if components is not None:
-                                components.html(mermaid_html, height=350, scrolling=True)
-                            else:
-                                st.code(mermaid_code, language="mermaid")
 
                     # Callers at Risk Detailed Table
                     flattened_callers = []
