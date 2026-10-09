@@ -2727,21 +2727,7 @@ def run_app() -> None:
                     border_color = r_color if risk_lvl in ("CRITICAL", "HIGH") else "var(--nb-border)"
 
                     diff_banner_html = f"""
-                    <div style="background: var(--nb-surface); border: 2px solid {border_color}; border-left: 8px solid {r_color}; border-radius: 2px; padding: 18px 22px; margin-bottom: 20px; box-shadow: var(--nb-shadow-lg);">
-                      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
-                        <div>
-                          <span style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1.5px; color: var(--nb-text-muted); font-weight: 800; font-family: 'Inter', sans-serif;">Overall Change Impact Risk</span>
-                          <h2 style="margin: 4px 0 0 0; color: {r_color}; font-size: 1.9rem; font-weight: 800; letter-spacing: 0.5px; font-family: 'Inter', sans-serif;">{risk_lvl} RISK</h2>
-                          <div style="font-size: 0.85rem; color: var(--nb-text-muted); margin-top: 6px; font-family: 'JetBrains Mono', monospace;">
-                            Comparing <code>{d_detail.get('base_ref')}</code> ({d_detail.get('base_commit_hash', '')[:7]}) ➜ <code>{d_detail.get('target_ref')}</code> ({d_detail.get('target_commit_hash', '')[:7]})
-                          </div>
-                        </div>
-                        <div style="background: var(--nb-surface); border: 2px solid var(--nb-border); border-radius: 2px; padding: 10px 18px; text-align: right; box-shadow: var(--nb-shadow-sm);">
-                          <div style="font-size: 1.6rem; font-weight: 800; color: {r_color}; font-family: 'JetBrains Mono', monospace;">{d_detail['summary'].get('total_breaking_changes', 0)}</div>
-                          <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--nb-text-muted); font-weight: 700;">Breaking Changes</div>
-                        </div>
-                      </div>
-                    </div>
+                   
                     """
                     render_html(diff_banner_html)
 
